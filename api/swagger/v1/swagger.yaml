@@ -1,0 +1,298 @@
+openapi: 3.0.3
+info:
+  title: Azure DevOps Challenge API
+  description: |
+    Production-ready Rails API for the Azure DevOps Technical Challenge.
+    
+    ## Authentication
+    All authenticated endpoints require a Bearer token in the Authorization header.
+    
+    ## Rate Limiting
+    - 100 requests per 15 minutes per IP
+    - 1000 requests per hour for authenticated users
+    
+    ## Pagination
+    List endpoints support `page` and `per_page` parameters.
+  version: 1.0.0
+  contact:
+    name: DevOps Team
+    email: devops@example.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development
+  - url: https://api-staging.example.com
+    description: Staging
+  - url: https://api.example.com
+    description: Production
+
+tags:
+  - name: Health
+    description: Health check endpoints for orchestration
+  - name: Users
+    description: User management operations
+  - name: Tasks
+    description: Task management operations
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns application health status including database and Redis connectivity
+      operationId: getHealth
+      responses:
+        '200':
+          description: Application is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Application is unhealthy
+
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      description: Kubernetes readiness probe - checks if app can serve traffic
+      operationId: getReadiness
+      responses:
+        '200':
+          description: Application is ready
+        '503':
+          description: Application is not ready
+
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      description: Kubernetes liveness probe - checks if app is alive
+      operationId: getLiveness
+      responses:
+        '200':
+          description: Application is alive
+
+  /api/v1/users:
+    get:
+      tags: [Users]
+      summary: List all users
+      operationId: listUsers
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      tags: [Users]
+      summary: Create a new user
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get a user by ID
+      operationId: getUser
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+    patch:
+      tags: [Users]
+      summary: Update a user
+      operationId: updateUser
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+      responses:
+        '200':
+          description: User updated
+        '422':
+          description: Validation error
+    delete:
+      tags: [Users]
+      summary: Delete a user
+      operationId: deleteUser
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '204':
+          description: User deleted
+        '404':
+          description: User not found
+
+  /api/v1/users/{user_id}/tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks for a user
+      operationId: listUserTasks
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/PageParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, in_progress, completed]
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+
+components:
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+    PerPageParam:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        default: 25
+        maximum: 100
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: healthy
+        timestamp:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          properties:
+            database:
+              type: string
+            redis:
+              type: string
+            sidekiq:
+              type: integer
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserInput:
+      type: object
+      required:
+        - username
+        - email
+      properties:
+        user:
+          type: object
+          properties:
+            username:
+              type: string
+              minLength: 3
+              maxLength: 50
+            email:
+              type: string
+              format: email
+            password:
+              type: string
+              minLength: 8
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        due_date:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+

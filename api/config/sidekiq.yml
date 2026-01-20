@@ -1,0 +1,37 @@
+# Sidekiq configuration for background job processing
+
+# Concurrency (number of threads)
+:concurrency: <%= ENV.fetch('SIDEKIQ_CONCURRENCY', 10) %>
+
+# Process lifecycle timeout
+:timeout: 25
+
+# Queues with priorities (higher number = higher priority)
+:queues:
+  - [critical, 3]
+  - [default, 2]
+  - [mailers, 2]
+  - [exports, 1]
+  - [low, 1]
+
+# Development specific settings
+development:
+  :concurrency: 5
+
+# Staging settings
+staging:
+  :concurrency: 10
+
+# Production settings
+production:
+  :concurrency: <%= ENV.fetch('SIDEKIQ_CONCURRENCY', 25) %>
+
+# Limit retries
+:max_retries: 5
+
+# Enable verbose logging
+:verbose: <%= ENV.fetch('SIDEKIQ_VERBOSE', false) %>
+
+# Require specific files
+:require: ./config/environment.rb
+
