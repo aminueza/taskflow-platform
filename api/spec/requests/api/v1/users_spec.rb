@@ -86,7 +86,7 @@ RSpec.describe 'Api::V1::Users', type: :request do
           post '/api/v1/users', params: invalid_attributes
         }.not_to change(User, :count)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
       end
 
       it 'returns error messages' do
@@ -102,7 +102,7 @@ RSpec.describe 'Api::V1::Users', type: :request do
       it 'returns conflict error' do
         post '/api/v1/users', params: valid_attributes
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(json_response['errors']).to include('email')
       end
     end
@@ -125,7 +125,7 @@ RSpec.describe 'Api::V1::Users', type: :request do
       it 'returns unprocessable entity' do
         patch "/api/v1/users/#{user.id}", params: invalid_attributes
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
       end
     end
   end

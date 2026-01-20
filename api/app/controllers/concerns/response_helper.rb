@@ -51,7 +51,7 @@ module ResponseHelper
   end
 
   def render_unprocessable_entity(message, errors: [])
-    render_error(message, errors: errors, status: :unprocessable_entity)
+    render_error(message, errors: errors, status: :unprocessable_content)
   end
 
   def render_conflict(message)

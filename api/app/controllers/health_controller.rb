@@ -17,6 +17,26 @@ class HealthController < ApplicationController
     }
   end
 
+  def live
+    render json: { status: 'alive', timestamp: Time.current.iso8601 }
+  end
+
+  def ready
+    db_status = check_database
+    redis_status = check_redis
+
+    status = (db_status && redis_status) ? 'ready' : 'not_ready'
+
+    render json: {
+      status: status,
+      timestamp: Time.current.iso8601,
+      checks: {
+        database: db_status ? 'connected' : 'disconnected',
+        redis: redis_status ? 'connected' : 'disconnected'
+      }
+    }
+  end
+
   private
 
   def check_database

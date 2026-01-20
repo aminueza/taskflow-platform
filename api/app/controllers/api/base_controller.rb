@@ -33,7 +33,7 @@ module Api
         error: 'Validation failed',
         message: exception.message,
         details: exception.record.errors.full_messages
-      }, status: :unprocessable_entity
+      }, status: :unprocessable_content
     end
   end
 end

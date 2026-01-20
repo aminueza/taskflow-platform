@@ -16,7 +16,7 @@ module Api
         if user.save
           render json: user, status: :created
         else
-          render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
+          render json: { errors: user.errors.full_messages }, status: :unprocessable_content
         end
       end
 
@@ -25,7 +25,7 @@ module Api
         if user.update(user_params)
           render json: user
         else
-          render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
+          render json: { errors: user.errors.full_messages }, status: :unprocessable_content
         end
       end
 
@@ -38,7 +38,7 @@ module Api
       private
 
       def user_params
-        params.require(:user).permit(:username, :email)
+        params.require(:user).permit(:username, :email, :password, :password_confirmation)
       end
     end
   end

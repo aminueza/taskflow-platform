@@ -1,10 +1,32 @@
 class User < ApplicationRecord
+  has_secure_password
+
   has_many :tasks, dependent: :destroy
+  has_many :audit_logs, dependent: :destroy
 
   validates :username, presence: true, uniqueness: true, length: { minimum: 3, maximum: 50 }
   validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }
 
   before_save :downcase_email
+
+  scope :active, -> { where(deleted_at: nil) }
+  scope :recent, -> { order(created_at: :desc) }
+
+  def soft_delete!
+    update!(deleted_at: Time.current)
+  end
+
+  def active?
+    deleted_at.nil?
+  end
+
+  def generate_token(expires_in: 24.hours)
+    payload = {
+      user_id: id,
+      exp: expires_in.from_now.to_i
+    }
+    JWT.encode(payload, Rails.application.credentials.secret_key_base, 'HS256')
+  end
 
   private
 

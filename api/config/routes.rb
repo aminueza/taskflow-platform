@@ -3,8 +3,10 @@ Rails.application.routes.draw do
   mount Rswag::Ui::Engine => '/api-docs'
   mount Rswag::Api::Engine => '/api-docs'
 
-  # Health check endpoint
+  # Health check endpoints
   get '/health', to: 'health#index'
+  get '/health/live', to: 'health#live'
+  get '/health/ready', to: 'health#ready'
 
   # =====================
   # API Routes (for React Frontend)

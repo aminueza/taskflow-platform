@@ -3,9 +3,9 @@
 class UserMailerWorker
   include Sidekiq::Worker
 
-  sidekiq_options retry: 3, queue: :mailers, backtrace: true
+  sidekiq_options retry: 3, queue: 'mailers', backtrace: true
 
-  def perform(user_id, mail_type)
+  def perform(user_id, mail_type = 'welcome')
     user = User.find(user_id)
 
     case mail_type
