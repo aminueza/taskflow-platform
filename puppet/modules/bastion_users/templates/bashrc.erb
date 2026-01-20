@@ -1,0 +1,50 @@
+# Managed by Puppet - DO NOT EDIT
+# User: <%= @username %>
+
+# Bash history configuration
+export HISTSIZE=10000
+export HISTFILESIZE=20000
+export HISTCONTROL=ignoredups:ignorespace
+export HISTTIMEFORMAT="%F %T "
+
+# Append to history, don't overwrite
+shopt -s histappend
+
+# Prompt configuration
+export PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+
+# Safety aliases
+alias rm='rm -i'
+alias cp='cp -i'
+alias mv='mv -i'
+
+# Useful aliases
+alias ll='ls -lah'
+alias la='ls -A'
+alias l='ls -CF'
+alias grep='grep --color=auto'
+
+# Azure CLI auto-completion
+if [ -f /etc/bash_completion.d/azure-cli ]; then
+    source /etc/bash_completion.d/azure-cli
+fi
+
+# Kubectl auto-completion (if installed)
+if command -v kubectl &> /dev/null; then
+    source <(kubectl completion bash)
+fi
+
+# Environment variables
+export EDITOR=vim
+export VISUAL=vim
+
+# Add user bin to PATH
+export PATH="$HOME/.local/bin:$PATH"
+
+# Display MOTD
+if [ -f /etc/motd.bastion ]; then
+    cat /etc/motd.bastion
+fi
+
+# Audit logging
+export PROMPT_COMMAND='history -a; echo "$(date +%Y-%m-%d_%H:%M:%S) $(whoami) $(history 1)" >> ~/.audit.log'

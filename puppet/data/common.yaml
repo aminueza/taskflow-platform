@@ -1,0 +1,28 @@
+---
+# Common Puppet configuration
+
+# Admin users for bastion host
+bastion_users::users:
+  alice:
+    uid: 2001
+    groups:
+      - sudo
+      - docker
+    ssh_keys:
+      - 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyAlice alice@example.com'
+
+  bob:
+    uid: 2002
+    groups:
+      - sudo
+    ssh_keys:
+      - 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyBob bob@example.com'
+
+# pgAdmin configuration
+pgadmin::servers:
+  production:
+    host: 'psql-webapp-dev-weu.postgres.database.azure.com'
+    port: 5432
+    username: 'psqladmin'
+    database: 'webapp_production'
+    ssl_mode: 'require'

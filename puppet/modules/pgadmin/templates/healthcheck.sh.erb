@@ -1,0 +1,31 @@
+#!/bin/bash
+# pgAdmin health check script
+# Managed by Puppet - DO NOT EDIT
+
+set -euo pipefail
+
+PGADMIN_URL="http://localhost:<%= @port %>/misc/ping"
+MAX_RETRIES=3
+RETRY_DELAY=5
+
+log() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" | logger -t pgadmin-healthcheck
+}
+
+for i in $(seq 1 $MAX_RETRIES); do
+    if curl -sf "$PGADMIN_URL" > /dev/null 2>&1; then
+        log "Health check passed"
+        exit 0
+    fi
+
+    log "Health check failed (attempt $i/$MAX_RETRIES)"
+
+    if [ $i -lt $MAX_RETRIES ]; then
+        sleep $RETRY_DELAY
+    fi
+done
+
+log "Health check failed after $MAX_RETRIES attempts, restarting pgAdmin"
+systemctl restart docker-pgadmin
+
+exit 1

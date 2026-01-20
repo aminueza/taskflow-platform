@@ -1,0 +1,16 @@
+{
+  "Servers": {
+<% @server_connections.each_with_index do |(name, config), index| -%>
+    "<%= index + 1 %>": {
+      "Name": "<%= name %>",
+      "Group": "Azure PostgreSQL",
+      "Host": "<%= config['host'] %>",
+      "Port": <%= config['port'] || 5432 %>,
+      "MaintenanceDB": "<%= config['database'] || 'postgres' %>",
+      "Username": "<%= config['username'] %>",
+      "SSLMode": "<%= config['ssl_mode'] || 'require' %>",
+      "Comment": "Managed by Puppet - <%= config['comment'] || name %>"
+    }<%= index < @server_connections.length - 1 ? ',' : '' %>
+<% end -%>
+  }
+}
