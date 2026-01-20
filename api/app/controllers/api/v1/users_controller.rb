@@ -3,6 +3,13 @@ module Api
     class UsersController < Api::BaseController
       def index
         users = User.all.order(created_at: :desc)
+
+        if params[:page].present? || params[:per_page].present?
+          page = params[:page].to_i.positive? ? params[:page].to_i : 1
+          per_page = params[:per_page].to_i.positive? ? params[:per_page].to_i : 20
+          users = users.limit(per_page).offset((page - 1) * per_page)
+        end
+
         render json: users
       end
 
@@ -31,7 +38,7 @@ module Api
 
       def destroy
         user = User.find(params[:id])
-        user.destroy
+        user.soft_delete!
         head :no_content
       end
 

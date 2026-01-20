@@ -8,11 +8,19 @@ RSpec.describe User, type: :model do
 
     it { is_expected.to validate_presence_of(:email) }
     it { is_expected.to validate_presence_of(:username) }
-    it { is_expected.to validate_uniqueness_of(:email).case_insensitive }
+    it { is_expected.to validate_presence_of(:password) }
     it { is_expected.to validate_uniqueness_of(:username) }
     it { is_expected.to validate_length_of(:username).is_at_least(3).is_at_most(50) }
     it { is_expected.to allow_value('user@example.com').for(:email) }
     it { is_expected.not_to allow_value('invalid_email').for(:email) }
+
+    it 'validates case-insensitive uniqueness of email' do
+      user1 = create(:user, email: 'test@example.com')
+      user2 = build(:user, email: 'TEST@EXAMPLE.COM')
+
+      expect(user2).not_to be_valid
+      expect(user2.errors[:email]).to include('has already been taken')
+    end
   end
 
   describe 'associations' do
@@ -82,13 +90,15 @@ RSpec.describe User, type: :model do
 
     it 'includes user_id in payload' do
       token = user.generate_token
-      payload = JWT.decode(token, Rails.application.credentials.secret_key_base, true, algorithm: 'HS256').first
+      secret = Rails.application.credentials.secret_key_base || Rails.application.secret_key_base
+      payload = JWT.decode(token, secret, true, algorithm: 'HS256').first
       expect(payload['user_id']).to eq(user.id)
     end
 
     it 'sets expiration time' do
       token = user.generate_token(expires_in: 1.hour)
-      payload = JWT.decode(token, Rails.application.credentials.secret_key_base, true, algorithm: 'HS256').first
+      secret = Rails.application.credentials.secret_key_base || Rails.application.secret_key_base
+      payload = JWT.decode(token, secret, true, algorithm: 'HS256').first
       expect(payload['exp']).to be_within(5).of(1.hour.from_now.to_i)
     end
   end

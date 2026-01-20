@@ -25,7 +25,8 @@ class User < ApplicationRecord
       user_id: id,
       exp: expires_in.from_now.to_i
     }
-    JWT.encode(payload, Rails.application.credentials.secret_key_base, 'HS256')
+    secret = Rails.application.credentials.secret_key_base || Rails.application.secret_key_base
+    JWT.encode(payload, secret, 'HS256')
   end
 
   private

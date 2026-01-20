@@ -103,7 +103,7 @@ RSpec.describe 'Api::V1::Users', type: :request do
         post '/api/v1/users', params: valid_attributes
 
         expect(response).to have_http_status(:unprocessable_content)
-        expect(json_response['errors']).to include('email')
+        expect(json_response['errors'].any? { |e| e.include?('Email') }).to be true
       end
     end
   end

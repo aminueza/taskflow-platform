@@ -44,14 +44,14 @@ RSpec.describe UserRegistrationService do
       it 'raises an error' do
         expect {
           described_class.new(invalid_params).call
-        }.to raise_error(ActiveRecord::RecordInvalid)
+        }.to raise_error(UserRegistrationService::RegistrationError)
       end
 
       it 'does not create a user' do
         expect {
           begin
             described_class.new(invalid_params).call
-          rescue ActiveRecord::RecordInvalid
+          rescue UserRegistrationService::RegistrationError
             # expected
           end
         }.not_to change(User, :count)
@@ -61,7 +61,7 @@ RSpec.describe UserRegistrationService do
         expect {
           begin
             described_class.new(invalid_params).call
-          rescue ActiveRecord::RecordInvalid
+          rescue UserRegistrationService::RegistrationError
             # expected
           end
         }.not_to change(UserMailerWorker.jobs, :size)
@@ -74,7 +74,7 @@ RSpec.describe UserRegistrationService do
       it 'raises an error' do
         expect {
           described_class.new(valid_params).call
-        }.to raise_error(ActiveRecord::RecordInvalid)
+        }.to raise_error(UserRegistrationService::RegistrationError)
       end
     end
   end
