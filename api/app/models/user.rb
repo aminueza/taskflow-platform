@@ -5,9 +5,9 @@ class User < ApplicationRecord
   has_many :audit_logs, dependent: :destroy
 
   validates :username, presence: true, uniqueness: true, length: { minimum: 3, maximum: 50 }
-  validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }
+  validates :email, presence: true, uniqueness: { case_sensitive: false }, format: { with: URI::MailTo::EMAIL_REGEXP }
 
-  before_save :downcase_email
+  before_validation :downcase_email
 
   scope :active, -> { where(deleted_at: nil) }
   scope :recent, -> { order(created_at: :desc) }

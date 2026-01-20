@@ -4,6 +4,11 @@ require 'rails_helper'
 
 RSpec.describe 'Health Check', type: :request do
   describe 'GET /health' do
+    before do
+      allow_any_instance_of(HealthController).to receive(:check_redis).and_return(true)
+      allow_any_instance_of(HealthController).to receive(:check_sidekiq).and_return(1)
+    end
+
     it 'returns healthy status' do
       get '/health'
 
@@ -31,6 +36,10 @@ RSpec.describe 'Health Check', type: :request do
   end
 
   describe 'GET /health/ready' do
+    before do
+      allow_any_instance_of(HealthController).to receive(:check_redis).and_return(true)
+    end
+
     it 'returns ready status when all services are up' do
       get '/health/ready'
 
