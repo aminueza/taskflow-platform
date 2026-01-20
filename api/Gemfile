@@ -70,6 +70,7 @@ end
 group :test do
   gem 'simplecov', require: false
   gem 'shoulda-matchers', '~> 6.0'
+  gem 'rspec_junit_formatter'
 end
 
 # Windows does not include zoneinfo files

@@ -89,7 +89,19 @@ jobs:
         env:
           RAILS_ENV: test
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/webapp_test
-        run: bundle exec rspec
+        run: |
+          bundle exec rspec \
+            --format documentation \
+            --format RspecJunitFormatter \
+            --out tmp/rspec-results.xml
+
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: api/tmp/rspec-results.xml
+          check_name: RSpec Test Results
+          comment_mode: off
 
   build-and-push:
     name: Build and Push Docker Images
