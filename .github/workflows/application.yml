@@ -90,18 +90,23 @@ jobs:
           RAILS_ENV: test
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/webapp_test
         run: |
-          bundle exec rspec \
-            --format documentation \
-            --format RspecJunitFormatter \
-            --out tmp/rspec-results.xml
+          bundle exec rspec --format documentation | tee test-output.log
+          echo "TEST_EXIT_CODE=${PIPESTATUS[0]}" >> $GITHUB_ENV
 
-      - name: Publish test results
-        uses: EnricoMi/publish-unit-test-result-action@v2
+      - name: Generate test summary
         if: always()
-        with:
-          files: api/tmp/rspec-results.xml
-          check_name: RSpec Test Results
-          comment_mode: off
+        working-directory: api
+        run: |
+          echo "## 🧪 RSpec Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          tail -30 test-output.log >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check test results
+        if: always()
+        working-directory: api
+        run: exit ${TEST_EXIT_CODE:-1}
 
   build-and-push:
     name: Build and Push Docker Images
