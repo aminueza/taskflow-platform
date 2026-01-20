@@ -4,13 +4,21 @@ require 'rails_helper'
 require 'sidekiq/testing'
 
 RSpec.describe UserMailerWorker, type: :worker do
+  before do
+    ActionMailer::Base.deliveries.clear
+  end
+
   describe '#perform' do
     let(:user) { create(:user) }
 
     it 'sends welcome email to user' do
       expect {
-        described_class.new.perform(user.id)
-      }.not_to raise_error
+        described_class.new.perform(user.id, 'welcome')
+      }.to change { ActionMailer::Base.deliveries.count }.by(1)
+
+      mail = ActionMailer::Base.deliveries.last
+      expect(mail.to).to include(user.email)
+      expect(mail.subject).to eq('Welcome to TaskFlow!')
     end
 
     it 'handles missing user gracefully' do
