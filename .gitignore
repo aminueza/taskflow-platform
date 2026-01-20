@@ -1,0 +1,193 @@
+# ========================================
+# Rails API
+# ========================================
+
+# Bundler
+api/.bundle
+api/vendor/bundle
+
+# Logs
+api/log/*.log
+api/tmp/
+
+# Storage
+api/storage/
+
+# SQLite databases
+api/*.sqlite3
+api/*.sqlite3-*
+
+# Environment files
+api/.env
+api/.env.*
+!api/.env.example
+
+# Credentials
+api/config/master.key
+api/config/credentials/*.key
+
+# Bootsnap cache
+api/tmp/cache/bootsnap*
+
+# Coverage
+api/coverage/
+
+# Spring
+api/.byebug_history
+
+# ========================================
+# Frontend (React/Vite)
+# ========================================
+
+# Dependencies
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+
+# Build output
+frontend/dist/
+frontend/build/
+
+# Environment files
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Vite
+frontend/*.local
+
+# Logs
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/.npm
+
+# Cache
+frontend/.eslintcache
+frontend/.cache
+
+# TypeScript
+frontend/*.tsbuildinfo
+
+# ========================================
+# Terraform
+# ========================================
+
+# Local .terraform directories
+**/.terraform/
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Terraform lock file (optional - uncomment if using)
+# .terraform.lock.hcl
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform variables (sensitive)
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Terraform plan files
+*.tfplan
+
+# ========================================
+# Docker
+# ========================================
+
+# Docker Compose override
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# ========================================
+# IDE & Editors
+# ========================================
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains (IntelliJ, RubyMine, WebStorm)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ========================================
+# OS Generated
+# ========================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ========================================
+# Misc
+# ========================================
+
+# Secrets
+*.pem
+*.key
+!*.key.example
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Debug
+*.log
+debug/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
