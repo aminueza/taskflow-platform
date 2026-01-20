@@ -1,0 +1,65 @@
+name: Puppet Configuration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'puppet/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'puppet/**'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate Puppet Code
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.2
+
+      - name: Install Puppet
+        run: |
+          wget https://apt.puppet.com/puppet8-release-jammy.deb
+          sudo dpkg -i puppet8-release-jammy.deb
+          sudo apt-get update
+          sudo apt-get install -y puppet-agent
+
+      - name: Validate Puppet syntax
+        run: |
+          for file in $(find puppet/modules -name '*.pp'); do
+            /opt/puppetlabs/bin/puppet parser validate "$file"
+          done
+
+      - name: Run puppet-lint
+        run: |
+          gem install puppet-lint
+          puppet-lint puppet/modules
+
+  deploy:
+    name: Deploy Puppet Configuration
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Bastion
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.BASTION_HOST }}
+          username: ${{ secrets.BASTION_USER }}
+          key: ${{ secrets.BASTION_SSH_KEY }}
+          script: |
+            cd /etc/puppetlabs/code
+            sudo git pull
+            sudo /opt/puppetlabs/bin/puppet apply manifests/site.pp

@@ -1,0 +1,108 @@
+name: "Container Security Scan"
+description: "Scan container images using CodeQL and Trivy for security vulnerabilities"
+
+inputs:
+  dockerfile-dir:
+    description: "Path to Dockerfile"
+    required: false
+    type: string
+    default: "Dockerfile"
+  severity:
+    description: "Severity levels to check (CRITICAL,HIGH,MEDIUM,LOW)"
+    required: false
+    type: string
+    default: "CRITICAL,HIGH"
+  vuln-type:
+    description: "Types of vulnerabilities to check (os,library,config)"
+    required: false
+    type: string
+    default: "os,library"
+  ignore-unfixed:
+    description: "Whether to ignore unfixed vulnerabilities"
+    required: false
+    type: boolean
+    default: true
+  format:
+    description: "Output format (table,json,sarif)"
+    required: false
+    type: string
+    default: "sarif"
+  exit-code:
+    description: "Exit code when vulnerabilities are found"
+    required: false
+    type: string
+    default: "1"
+  limit-severities-for-sarif:
+    description: "By default SARIF format enforces output of all vulnerabilities regardless of configured severities. To override this behavior set this parameter to true"
+    required: false
+    type: boolean
+    default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  security-events: write
+  actions: write
+  id-token: write
+
+runs:
+  using: "composite"
+  steps:
+    - name: '🔍 Run Trivy Dockerfile scanner'
+      id: trivy
+      uses: aquasecurity/trivy-action@0.30.0
+      continue-on-error: true
+      with:
+        scan-type: 'fs'
+        scan-ref: ${{ inputs.dockerfile-dir }}
+        format: ${{ inputs.format }}
+        exit-code: ${{ inputs.exit-code }}
+        ignore-unfixed: ${{ inputs.ignore-unfixed }}
+        vuln-type: ${{ inputs.vuln-type }}
+        severity: ${{ inputs.severity }}
+        limit-severities-for-sarif: ${{ inputs.limit-severities-for-sarif }}
+        cache: 'true'
+        output: ./trivy-results.sarif
+        scanners: 'vuln'
+
+    - name: '📊 Upload Trivy results to GitHub Security'
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: ./trivy-results.sarif
+        category: "container-security"
+
+    - name: '📝 Process and Display Results'
+      shell: bash
+      run: |
+        if [ -f ./trivy-results.sarif ]; then
+          # Count vulnerabilities
+          VULN_COUNT=$(jq '.runs[0].results | length' ./trivy-results.sarif)
+          
+          # Add results to GitHub summary
+          {
+            echo "### 🔍 Container Security Scan Results"
+            if [ "$VULN_COUNT" -gt 0 ]; then
+              echo "⚠️ Found $VULN_COUNT vulnerabilities:"
+              echo ""
+              echo "| Severity | Message | Location |"
+              echo "|----------|---------|----------|"
+              jq -r '.runs[0].results[] | "| \(.level) | \(.message.text) | \(.locations[0].physicalLocation.artifactLocation.uri) |"' ./trivy-results.sarif
+              echo ""
+              echo "<details><summary>Raw SARIF Output</summary>"
+              echo ""
+              echo '```json'
+              jq '.' ./trivy-results.sarif
+              echo '```'
+              echo "</details>"
+            else
+              echo "✅ No vulnerabilities found!"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: '⚠️ Fail on Critical Issues'
+      if: ${{ steps.trivy.outcome == 'failure' }}
+      shell: bash
+      run: |
+        echo "::error::Critical security vulnerabilities found in Dockerfile"
+        exit 1
