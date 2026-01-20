@@ -33,12 +33,14 @@ jobs:
         with:
           dockerfile-dir: ./api
           severity: "CRITICAL,HIGH"
+          category: "security-api"
 
       - name: 🔍 Scan Frontend Dockerfile
         uses: ./.github/workflows/actions/security
         with:
           dockerfile-dir: ./frontend
           severity: "CRITICAL,HIGH"
+          category: "security-frontend"
 
   test:
     name: Test Rails Application

@@ -5,45 +5,35 @@ inputs:
   dockerfile-dir:
     description: "Path to Dockerfile"
     required: false
-    type: string
     default: "Dockerfile"
   severity:
     description: "Severity levels to check (CRITICAL,HIGH,MEDIUM,LOW)"
     required: false
-    type: string
     default: "CRITICAL,HIGH"
   vuln-type:
     description: "Types of vulnerabilities to check (os,library,config)"
     required: false
-    type: string
     default: "os,library"
   ignore-unfixed:
     description: "Whether to ignore unfixed vulnerabilities"
     required: false
-    type: boolean
-    default: true
+    default: "true"
   format:
     description: "Output format (table,json,sarif)"
     required: false
-    type: string
     default: "sarif"
   exit-code:
     description: "Exit code when vulnerabilities are found"
     required: false
-    type: string
     default: "1"
   limit-severities-for-sarif:
     description: "By default SARIF format enforces output of all vulnerabilities regardless of configured severities. To override this behavior set this parameter to true"
     required: false
-    type: boolean
-    default: false
-
-permissions:
-  contents: write
-  pull-requests: write
-  security-events: write
-  actions: write
-  id-token: write
+    default: "false"
+  category:
+    description: "Unique category for SARIF upload (e.g., security-api)"
+    required: false
+    default: "container-security"
 
 runs:
   using: "composite"
@@ -62,36 +52,39 @@ runs:
         severity: ${{ inputs.severity }}
         limit-severities-for-sarif: ${{ inputs.limit-severities-for-sarif }}
         cache: 'true'
-        output: ./trivy-results.sarif
+        output: ./trivy-${{ inputs.category }}.sarif
         scanners: 'vuln'
 
     - name: '📊 Upload Trivy results to GitHub Security'
       uses: github/codeql-action/upload-sarif@v4
       with:
-        sarif_file: ./trivy-results.sarif
-        category: "container-security"
+        sarif_file: ./trivy-${{ inputs.category }}.sarif
+        category: ${{ inputs.category }}
 
     - name: '📝 Process and Display Results'
       shell: bash
+      env:
+        SARIF_FILE: ./trivy-${{ inputs.category }}.sarif
+        CATEGORY: ${{ inputs.category }}
       run: |
-        if [ -f ./trivy-results.sarif ]; then
+        if [ -f "$SARIF_FILE" ]; then
           # Count vulnerabilities
-          VULN_COUNT=$(jq '.runs[0].results | length' ./trivy-results.sarif)
+          VULN_COUNT=$(jq '.runs[0].results | length' "$SARIF_FILE")
           
           # Add results to GitHub summary
           {
-            echo "### 🔍 Container Security Scan Results"
+            echo "### 🔍 Security Scan: ${CATEGORY}"
             if [ "$VULN_COUNT" -gt 0 ]; then
               echo "⚠️ Found $VULN_COUNT vulnerabilities:"
               echo ""
               echo "| Severity | Message | Location |"
               echo "|----------|---------|----------|"
-              jq -r '.runs[0].results[] | "| \(.level) | \(.message.text) | \(.locations[0].physicalLocation.artifactLocation.uri) |"' ./trivy-results.sarif
+              jq -r '.runs[0].results[] | "| \(.level) | \(.message.text) | \(.locations[0].physicalLocation.artifactLocation.uri) |"' "$SARIF_FILE"
               echo ""
               echo "<details><summary>Raw SARIF Output</summary>"
               echo ""
               echo '```json'
-              jq '.' ./trivy-results.sarif
+              jq '.' "$SARIF_FILE"
               echo '```'
               echo "</details>"
             else
