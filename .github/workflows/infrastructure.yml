@@ -4,11 +4,11 @@ on:
   push:
     branches: [main]
     paths:
-      - 'infrastructure/terraform/**'
+      - 'infrastructure/terraform/landing_zone/**'
   pull_request:
     branches: [main]
     paths:
-      - 'infrastructure/terraform/**'
+      - 'infrastructure/terraform/landing_zone/**'
   workflow_dispatch:
 
 env:

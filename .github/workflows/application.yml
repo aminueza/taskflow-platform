@@ -6,11 +6,13 @@ on:
     paths:
       - 'api/**'
       - 'frontend/**'
+      - 'infrastructure/terraform/applications/**'
   pull_request:
     branches: [main]
     paths:
       - 'api/**'
       - 'frontend/**'
+      - 'infrastructure/terraform/applications/**'
   workflow_dispatch:
 
 permissions:
