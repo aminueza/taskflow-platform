@@ -86,18 +86,13 @@ crash.log
 crash.*.log
 
 # Terraform lock file (optional - uncomment if using)
-# .terraform.lock.hcl
+*.terraform.lock.hcl
 
 # Override files
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
-
-# Terraform variables (sensitive)
-*.tfvars
-*.tfvars.json
-!*.tfvars.example
 
 # Terraform plan files
 *.tfplan

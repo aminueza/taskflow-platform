@@ -1,0 +1,20 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Generated tfvars (contains secrets)
+terraform.tfvars
+
+# Keep template and example files
+!terraform.tfvars.template
+!terraform.tfvars.example
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Terraform plan files
+*.tfplan
+tfplan

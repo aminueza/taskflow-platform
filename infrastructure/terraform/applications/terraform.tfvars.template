@@ -1,0 +1,61 @@
+environment         = "dev"
+location            = "westeurope"
+application_name    = "taskflow"
+business_impact     = "Low"
+data_classification = "Confidential"
+
+container_apps = {
+  api = {
+    container_name           = "api"
+    image                    = "__API_IMAGE__"
+    cpu                      = 0.5
+    memory                   = "1Gi"
+    env_vars = {
+      RAILS_ENV = {
+        value = "production"
+      }
+      DATABASE_URL = {
+        secret_name = "database-url"
+      }
+      REDIS_URL = {
+        secret_name = "redis-url"
+      }
+      SECRET_KEY_BASE = {
+        secret_name = "secret-key-base"
+      }
+    }
+    secrets = {
+      database-url    = "__DATABASE_URL__"
+      redis-url       = "__REDIS_URL__"
+      secret-key-base = "__SECRET_KEY_BASE__"
+    }
+    ingress_enabled          = true
+    ingress_external_enabled = true
+    ingress_target_port      = 3000
+    min_replicas             = 1
+    max_replicas             = 3
+    revision_mode            = "Single"
+  }
+
+  frontend = {
+    container_name           = "frontend"
+    image                    = "__FRONTEND_IMAGE__"
+    cpu                      = 0.25
+    memory                   = "0.5Gi"
+    env_vars = {
+      NODE_ENV = {
+        value = "production"
+      }
+      REACT_APP_API_URL = {
+        value = "__API_URL__"
+      }
+    }
+    secrets                  = {}
+    ingress_enabled          = true
+    ingress_external_enabled = true
+    ingress_target_port      = 80
+    min_replicas             = 1
+    max_replicas             = 3
+    revision_mode            = "Single"
+  }
+}
