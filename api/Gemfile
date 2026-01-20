@@ -34,6 +34,9 @@ gem 'jwt'
 gem 'rack-cors'
 gem 'rack-attack'
 
+# XML/HTML parsing (pinned for security)
+gem 'nokogiri', '>= 1.18.9'
+
 # Reduce boot times through caching
 gem 'bootsnap', require: false
 

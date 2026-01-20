@@ -40,7 +40,7 @@ runs:
   steps:
     - name: '🔍 Run Trivy Dockerfile scanner'
       id: trivy
-      uses: aquasecurity/trivy-action@0.30.0
+      uses: aquasecurity/trivy-action@0.33.1
       continue-on-error: true
       with:
         scan-type: 'fs'
@@ -53,7 +53,7 @@ runs:
         limit-severities-for-sarif: ${{ inputs.limit-severities-for-sarif }}
         cache: 'true'
         output: ./trivy-${{ inputs.category }}.sarif
-        scanners: 'vuln'
+        scanners: 'vuln,secret'
 
     - name: '📊 Upload Trivy results to GitHub Security'
       uses: github/codeql-action/upload-sarif@v4
