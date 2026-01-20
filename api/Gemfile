@@ -35,7 +35,7 @@ gem 'rack-cors'
 gem 'rack-attack'
 
 # XML/HTML parsing (pinned for security)
-gem 'nokogiri', '>= 1.18.3'
+gem 'nokogiri', '>= 1.19.0'
 
 # Reduce boot times through caching
 gem 'bootsnap', require: false

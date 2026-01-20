@@ -173,9 +173,9 @@ GEM
     net-smtp (0.5.1)
       net-protocol
     nio4r (2.7.5)
-    nokogiri (1.18.3-x86_64-linux)
+    nokogiri (1.19.0-x86_64-linux)
       racc (~> 1.4)
-    nokogiri (1.18.3-x86_64-linux-musl)
+    nokogiri (1.19.0-x86_64-linux-musl)
       racc (~> 1.4)
     parallel (1.27.0)
     parser (3.3.10.1)
@@ -348,7 +348,7 @@ DEPENDENCIES
   jsonapi-serializer
   jwt
   listen (~> 3.8)
-  nokogiri (>= 1.18.3)
+  nokogiri (>= 1.19.0)
   pg (~> 1.5)
   puma (~> 6.4)
   rack-attack
