@@ -114,7 +114,7 @@ jobs:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
     needs: [test, security]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     outputs:
       api-digest: ${{ steps.build-api.outputs.image-digest }}
       frontend-digest: ${{ steps.build-frontend.outputs.image-digest }}
