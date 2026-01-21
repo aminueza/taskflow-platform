@@ -64,7 +64,8 @@ RSpec.describe 'Metrics', type: :request do
       end
 
       it 'handles system metrics errors gracefully' do
-        allow(File).to receive(:exist?).and_raise(StandardError.new('Test error'))
+        allow(File).to receive(:exist?).and_call_original
+        allow(File).to receive(:exist?).with('/proc/self/status').and_raise(StandardError.new('Test error'))
         allow(Rails.logger).to receive(:error)
 
         expect { get '/metrics' }.not_to raise_error
