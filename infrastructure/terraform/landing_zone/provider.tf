@@ -16,17 +16,16 @@ terraform {
     }
   }
 
-  # Uncomment for remote state (recommended for production)
-  # backend "azurerm" {
-  #   resource_group_name  = "taskflow-tfstate-rg"
-  #   storage_account_name = "taskflowtfstate"
-  #   container_name       = "tfstate"
-  #   key                  = "prod.terraform.tfstate"
-  # }
+  backend "azurerm" {
+    resource_group_name  = "rg-storage-global-weu"
+    storage_account_name = "ststorageglobalweu"
+    container_name       = "cttfstate"
+    key                  = "statebucket/terraform.infrastructure.tfstate"
+  }
 }
 
 provider "azurerm" {
-  subscription_id = "956fbbb4-82b3-44ef-8a34-ce98a4c3e3b8"
+  subscription_id = "abfeb8a0-afc4-44a4-b1d7-7fd3ddda7d68"
 
   features {
     resource_group {
