@@ -250,11 +250,11 @@ runs:
         fi
         
         set +e
-        
+
         # Try to run with JSON reporter for better parsing
         if grep -q "vitest" package.json 2>/dev/null; then
-          # Vitest
-          ${{ inputs.test-command }} --reporter=json --outputFile=test-results.json 2>&1 | tee test-output.log
+          # Vitest - run with default reporter first for better error display
+          ${{ inputs.test-command }} 2>&1 | tee test-output.log
           TEST_EXIT=${PIPESTATUS[0]}
           FRAMEWORK="Vitest"
         else
