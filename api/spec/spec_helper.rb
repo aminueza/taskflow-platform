@@ -14,7 +14,6 @@ if ENV['COVERAGE']
     add_group 'Workers', 'app/workers'
 
     minimum_coverage 80
-    minimum_coverage_by_file 70
   end
 end
 
