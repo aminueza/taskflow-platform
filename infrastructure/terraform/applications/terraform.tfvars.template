@@ -1,5 +1,5 @@
 environment         = "global"
-location            = "westeurope"
+location            = "francecentral"
 application_name    = "taskflow"
 business_impact     = "Low"
 data_classification = "Confidential"

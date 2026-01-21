@@ -2,7 +2,7 @@
 # Copy this to terraform.tfvars and replace the placeholder values
 
 environment         = "global"
-location            = "westeurope"
+location            = "francecentral"
 application_name    = "taskflow"
 business_impact     = "Low"
 data_classification = "Confidential"
