@@ -1,56 +1,42 @@
-FROM ruby:3.2.2-alpine AS base
+FROM ruby:3.2.2-alpine
 
+# Install system dependencies
 RUN apk add --no-cache \
     build-base \
     postgresql-dev \
-    tzdata \
-    nodejs \
-    yarn \
-    git \
-    curl \
-    bash
-
-WORKDIR /app
-
-FROM base AS dependencies
-
-COPY Gemfile Gemfile.lock ./
-RUN bundle config set --local without 'development test' \
-    && bundle install --jobs=4 --retry=3 \
-    && rm -rf ~/.bundle/ /usr/local/bundle/cache/*.gem \
-    && find /usr/local/bundle/gems/ -name "*.c" -delete \
-    && find /usr/local/bundle/gems/ -name "*.o" -delete
-
-FROM ruby:3.2.2-alpine AS release
-
-RUN apk add --no-cache \
     postgresql-client \
     tzdata \
+    nodejs \
+    git \
+    curl \
     bash \
-    tini \
-    curl
+    tini
 
+# Create non-root user
 RUN addgroup -g 1001 -S rails \
     && adduser -S rails -u 1001 -G rails
 
 WORKDIR /app
 
-# Copy installed gems from dependencies stage
-COPY --from=dependencies /usr/local/bundle /usr/local/bundle
+# Copy Gemfile first for better caching
+COPY Gemfile Gemfile.lock ./
 
-# Set bundle path explicitly
-ENV BUNDLE_PATH=/usr/local/bundle \
-    BUNDLE_WITHOUT=development:test \
-    BUNDLE_DEPLOYMENT=false \
-    GEM_HOME=/usr/local/bundle \
-    PATH="/usr/local/bundle/bin:$PATH"
+# Install gems
+RUN bundle config set --local without 'development test' \
+    && bundle install --jobs=4 --retry=3 \
+    && rm -rf ~/.bundle/ /usr/local/bundle/cache/*.gem
 
+# Copy application code
 COPY --chown=rails:rails . .
 
-# RUN RAILS_ENV=production bundle exec rails assets:precompile
-
+# Create necessary directories
 RUN mkdir -p log tmp/pids tmp/cache tmp/sockets \
-    && chown -R rails:rails log tmp
+    && chown -R rails:rails log tmp db
+
+# Set environment variables
+ENV RAILS_ENV=production \
+    RAILS_LOG_TO_STDOUT=true \
+    BUNDLE_WITHOUT=development:test
 
 # Switch to non-root user
 USER rails
@@ -59,7 +45,7 @@ USER rails
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
 # Use tini for proper signal handling

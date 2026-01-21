@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "DevOps Task - PostgreSQL",
+      "Group": "Development",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "webapp_development",
+      "Username": "postgres",
+      "PassFile": "/var/lib/pgadmin/storage/admin_devops.local/pgpassfile",
+      "SSLMode": "prefer",
+      "Comment": "Auto-configured PostgreSQL database for DevOps Task"
+    }
+  }
+}

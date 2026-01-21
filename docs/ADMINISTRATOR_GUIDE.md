@@ -118,6 +118,48 @@ ssh -L 5432:postgres-server:5432 \
 - PostgreSQL: `localhost:5432`
 - pgAdmin: `http://localhost:8080`
 
+#### Option 3: SOCKS5 Proxy (Automated)
+
+Use the `tunnel.sh` script for automated setup via Azure Bastion Service:
+
+```bash
+# Run from project root
+./scripts/tunnel.sh
+```
+
+This creates:
+- Azure Bastion tunnel (port 2222)
+- SOCKS5 proxy (localhost:8080)
+
+**Configure browser:**
+
+Firefox: Settings → Network → Manual proxy → SOCKS Host: `localhost`, Port: `8080`
+- Enable "Proxy DNS when using SOCKS v5"
+
+Chrome:
+```bash
+google-chrome --proxy-server="socks5://localhost:8080"
+```
+
+**Access internal services:**
+- pgAdmin: `http://<bastion-private-ip>:5050`
+- Apps subnet: `http://10.0.2.x`
+- Database subnet: `http://10.0.3.x`
+
+**Test connection:**
+```bash
+curl --proxy socks5h://localhost:8080 http://google.com
+```
+
+**Custom ports:**
+```bash
+SOCKS_PORT=9090 TUNNEL_PORT=3333 ./scripts/tunnel.sh
+```
+
+**Stop proxy:** Press `Ctrl+C`
+
+See `docs/BASTION_PROXY_SETUP.md` for detailed configuration.
+
 ### Bastion Host Management
 
 #### User Management (via Puppet)
@@ -811,7 +853,7 @@ terraform apply
 ## Resources
 
 - **Infrastructure Diagram:** `/docs/INFRASTRUCTURE_DIAGRAM.md`
-- **Bastion Setup Guide:** `/infrastructure/docs/BASTION_PROXY_SETUP.md`
+- **Bastion Setup Guide:** `/docs/BASTION_PROXY_SETUP.md`
 - **Terraform Docs:** `/infrastructure/terraform/README.md`
 - **Puppet Modules:** `/puppet/modules/`
 - **Azure Portal:** https://portal.azure.com
