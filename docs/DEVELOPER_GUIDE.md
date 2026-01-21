@@ -21,6 +21,30 @@
 - **Node.js 18+** (for frontend development)
 - **PostgreSQL 15+** (local database)
 
+### Key Files
+
+**Dockerfiles:**
+- `api/Dockerfile` - Rails container
+- `frontend/Dockerfile` - React container
+
+**Infrastructure:**
+- `infrastructure/terraform/modules/bastion/` - No public IP
+- `infrastructure/terraform/modules/postgresql/` - Separate database
+
+**Puppet:**
+- `puppet/modules/bastion_users/` - User management
+- `puppet/modules/pgadmin/` - Database tool
+
+**CI/CD:**
+- `.github/workflows/application.yml` - App pipeline
+- `.github/workflows/infrastructure.yml` - Terraform
+- `.github/workflows/puppet.yml` - Config management
+
+**Scripts:**
+- `scripts/generate-secrets.sh` - Create .env
+- `scripts/quick-start.sh` - Start local stack
+- `scripts/tunnel.sh` - Bastion access
+
 ### Repository Structure
 
 ```
@@ -159,62 +183,6 @@ Dashboards are in `observability/grafana/dashboards/` and loaded automatically o
 
 ---
 
-## Development Workflow
-
-### Branching Strategy
-
-We follow **Git Flow**:
-
-```
-main              # Production-ready code
-├── develop       # Integration branch
-    ├── feature/  # New features
-    ├── fix/      # Bug fixes
-    └── hotfix/   # Emergency fixes
-```
-
-### Creating a Feature
-
-```bash
-# Create and checkout feature branch
-git checkout -b feature/user-authentication
-
-# Make changes and commit
-git add .
-git commit -m "feat: add user authentication"
-
-# Push to remote
-git push origin feature/user-authentication
-
-# Create Pull Request on GitHub
-```
-
-### Commit Message Convention
-
-Follow **Conventional Commits**:
-
-```
-feat: add new feature
-fix: bug fix
-docs: documentation changes
-test: add tests
-refactor: code refactoring
-chore: maintenance tasks
-```
-
-### Pull Request Process
-
-1. **Create PR** from your feature branch to `develop`
-2. **Automated Checks** will run:
-   - ✅ Security scanning (Trivy, Brakeman)
-   - ✅ Tests (RSpec, Jest)
-   - ✅ Linting (RuboCop, ESLint)
-3. **Code Review** by team member(s)
-4. **Merge** after approval
-5. **Auto-deployment** to staging (if on `develop`)
-6. **Production deployment** when merged to `main`
-
----
 
 ## Testing
 
@@ -551,94 +519,8 @@ npm run lint
 # Auto-fix issues
 npm run lint:fix
 ```
-
 ---
 
-## Best Practices
-
-### API Development
-
-1. ✅ **Write tests first** (TDD approach)
-2. ✅ **Use service objects** for complex logic
-3. ✅ **Follow RESTful conventions**
-4. ✅ **Add API documentation** (Swagger/OpenAPI)
-5. ✅ **Validate all inputs**
-6. ✅ **Handle errors gracefully**
-
-### Frontend Development
-
-1. ✅ **Component-based architecture**
-2. ✅ **Responsive design** (mobile-first)
-3. ✅ **Accessibility** (WCAG 2.1 AA)
-4. ✅ **Performance** (lazy loading, code splitting)
-5. ✅ **State management** (Context API or Redux)
-
-### General
-
-1. ✅ **Small, focused commits**
-2. ✅ **Descriptive commit messages**
-3. ✅ **Keep PRs small** (<500 lines)
-4. ✅ **Update documentation** with code changes
-5. ✅ **Security first** (never commit secrets)
-
----
-
-## Performance Tips
-
-### Optimizing API
-
-```ruby
-# Use eager loading to avoid N+1 queries
-User.includes(:tasks).where(active: true)
-
-# Add database indexes
-add_index :users, :email
-add_index :tasks, [:user_id, :status]
-
-# Cache expensive queries
-Rails.cache.fetch("user_#{id}/tasks", expires_in: 1.hour) do
-  user.tasks.to_a
-end
-
-# Use background jobs for slow operations
-UserMailerWorker.perform_async(user.id, 'welcome')
-```
-
-### Optimizing Frontend
-
-```javascript
-// Lazy load components
-const Dashboard = lazy(() => import('./Dashboard'));
-
-// Memoize expensive calculations
-const memoizedValue = useMemo(() => computeExpensiveValue(a, b), [a, b]);
-
-// Debounce search input
-const debouncedSearch = useDebounce(searchTerm, 300);
-
-// Use React Query for data fetching
-const { data } = useQuery('users', fetchUsers);
-```
-
----
-
-## Resources
-
-- **API Documentation:** https://api.taskflow.com/api-docs
-- **Deployment Dashboard:** https://github.com/your-org/taskflow-platform/actions
-- **Monitoring:** Azure Application Insights
-- **Team Chat:** Slack #taskflow-dev
-
----
-
-## Getting Help
-
-1. **Documentation:** Check this guide and `/docs` folder
-2. **Team:** Ask in Slack #taskflow-dev channel
-3. **Issues:** Create GitHub issue with `question` label
-4. **Code Review:** Request review from senior developers
-
----
 
 ## Quick Reference
 
@@ -667,11 +549,3 @@ bundle exec rails console
 # Build Docker image
 docker build -t taskflow-api ./api
 ```
-
-### Important URLs
-
-- **Production Frontend:** https://taskflow.com
-- **Production API:** https://api.taskflow.com
-- **Staging Frontend:** https://staging.taskflow.com
-- **API Docs:** https://api.taskflow.com/api-docs
-- **GitHub Repo:** https://github.com/your-org/taskflow-platform

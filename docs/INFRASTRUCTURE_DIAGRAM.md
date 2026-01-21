@@ -2,137 +2,15 @@
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            Azure Cloud (West Europe)                         │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                    Resource Group: rg-taskflow-dev-weu                  │ │
-│  │                                                                          │ │
-│  │  ┌──────────────────────────────────────────────────────────────────┐  │ │
-│  │  │                     Virtual Network (VNet)                        │  │ │
-│  │  │                     10.0.0.0/16                                   │  │ │
-│  │  │                                                                    │  │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────┐ │  │ │
-│  │  │  │  Private Subnet (10.0.1.0/24)                               │ │  │ │
-│  │  │  │                                                              │ │  │ │
-│  │  │  │  ┌────────────────────┐                                     │ │  │ │
-│  │  │  │  │   Bastion Host     │  ← NOT publicly accessible          │ │  │ │
-│  │  │  │  │   (Ubuntu 24.04)   │                                     │ │  │ │
-│  │  │  │  │                    │  Managed by Puppet:                 │ │  │ │
-│  │  │  │  │  - Admin Users     │  • User credentials                 │ │  │ │
-│  │  │  │  │  - pgAdmin 4       │  • pgAdmin installation             │ │  │ │
-│  │  │  │  │  - SSH Access      │  • System configuration             │ │  │ │
-│  │  │  │  │                    │                                     │ │  │ │
-│  │  │  │  │  Private IP only   │                                     │ │  │ │
-│  │  │  │  └────────────────────┘                                     │ │  │ │
-│  │  │  │           │                                                  │ │  │ │
-│  │  │  │           │ VNet Integration                                │ │  │ │
-│  │  │  │           ▼                                                  │ │  │ │
-│  │  │  │  ┌────────────────────┐                                     │ │  │ │
-│  │  │  │  │  PostgreSQL 17     │                                     │ │  │ │
-│  │  │  │  │  Flexible Server   │  ← Database on own cloud resource  │ │  │ │
-│  │  │  │  │                    │     Resilient to app updates        │ │  │ │
-│  │  │  │  │  Private Endpoint  │                                     │ │  │ │
-│  │  │  │  └────────────────────┘                                     │ │  │ │
-│  │  │  └─────────────────────────────────────────────────────────────┘ │  │ │
-│  │  │                                                                    │  │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────┐ │  │ │
-│  │  │  │  Container Apps Subnet (10.0.2.0/23)                        │ │  │ │
-│  │  │  │                                                              │ │  │ │
-│  │  │  │  ┌──────────────────────────────────────────────────────┐  │ │  │ │
-│  │  │  │  │     Container Apps Environment                        │  │ │  │ │
-│  │  │  │  │                                                        │  │ │  │ │
-│  │  │  │  │  ┌──────────────┐         ┌──────────────┐            │  │ │  │ │
-│  │  │  │  │  │   API App    │         │ Frontend App │            │  │ │  │ │
-│  │  │  │  │  │              │         │              │            │  │ │  │ │
-│  │  │  │  │  │  Rails 7.1   │◄────────┤   React      │            │  │ │  │ │
-│  │  │  │  │  │  (Docker)    │         │  (Docker)    │            │  │ │  │ │
-│  │  │  │  │  │              │         │              │            │  │ │  │ │
-│  │  │  │  │  │  Port: 3000  │         │  Port: 80    │            │  │ │  │ │
-│  │  │  │  │  │  Replicas:1-3│         │  Replicas:1-3│            │  │ │  │ │
-│  │  │  │  │  └──────────────┘         └──────────────┘            │  │ │  │ │
-│  │  │  │  │         │                         │                    │  │ │  │ │
-│  │  │  │  │         └─────────┬───────────────┘                    │  │ │  │ │
-│  │  │  │  │                   │                                    │  │ │  │ │
-│  │  │  │  │                   ▼                                    │  │ │  │ │
-│  │  │  │  │         ┌──────────────────┐                          │  │ │  │ │
-│  │  │  │  │         │  Redis Cache     │                          │  │ │  │ │
-│  │  │  │  │         │  (Sidekiq Jobs)  │                          │  │ │  │ │
-│  │  │  │  │         └──────────────────┘                          │  │ │  │ │
-│  │  │  │  └──────────────────────────────────────────────────────┘  │ │  │ │
-│  │  │  └─────────────────────────────────────────────────────────────┘ │  │ │
-│  │  └────────────────────────────────────────────────────────────────────┘  │ │
-│  │                                                                            │ │
-│  │  ┌──────────────────────────────────────────────────────────────────┐    │ │
-│  │  │                  Azure Container Registry (ACR)                   │    │ │
-│  │  │                                                                    │    │ │
-│  │  │  • myregistry.azurecr.io/api:latest                              │    │ │
-│  │  │  • myregistry.azurecr.io/frontend:latest                         │    │ │
-│  │  └──────────────────────────────────────────────────────────────────┘    │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────┘
+![Azure Architecture](images/azure-architecture.png)
 
-                                      ▲
-                                      │
-                                      │  HTTPS
-                                      │
-                          ┌───────────┴───────────┐
-                          │                       │
-                     ┌────┴────┐           ┌──────┴──────┐
-                     │  Users  │           │  Admins     │
-                     │         │           │             │
-                     │  Web UI │           │  SSH Tunnel │
-                     └─────────┘           │  to Bastion │
-                                          └─────────────┘
-```
+*Cloud-native microservices on Azure Container Apps with private database access and Puppet-managed bastion for administration.*
 
 ## CI/CD Pipeline Flow
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           GitHub Repository                              │
-│                                                                          │
-│  ┌──────────┐     ┌──────────┐     ┌────────────┐     ┌──────────────┐ │
-│  │   API    │     │ Frontend │     │ Terraform  │     │    Puppet    │ │
-│  │  (Rails) │     │  (React) │     │ (IaC)      │     │  (Config)    │ │
-│  └────┬─────┘     └────┬─────┘     └─────┬──────┘     └──────────────┘ │
-│       │                │                  │                             │
-└───────┼────────────────┼──────────────────┼─────────────────────────────┘
-        │                │                  │
-        ▼                ▼                  ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                       GitHub Actions Workflows                           │
-│                                                                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
-│  │   Security   │  │     Test     │  │    Build     │                  │
-│  │   Scanning   │  │    (RSpec)   │  │   & Push     │                  │
-│  │              │  │              │  │    Docker    │                  │
-│  │  • Trivy     │  │  • 50 tests  │  │    Images    │                  │
-│  │  • Brakeman  │  │  • Coverage  │  │              │                  │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘                  │
-│         │                 │                  │                          │
-│         └─────────────────┴──────────────────┘                          │
-│                           │                                             │
-│                           ▼                                             │
-│                  ┌──────────────────┐                                   │
-│                  │  Terraform Apply │                                   │
-│                  │                  │                                   │
-│                  │  • Generate      │                                   │
-│                  │    tfvars        │                                   │
-│                  │  • Deploy Apps   │                                   │
-│                  │  • Run           │                                   │
-│                  │    Migrations    │                                   │
-│                  └────────┬─────────┘                                   │
-│                           │                                             │
-└───────────────────────────┼─────────────────────────────────────────────┘
-                            │
-                            ▼
-                  ┌──────────────────┐
-                  │   Azure Cloud    │
-                  │   (Deployed!)    │
-                  └──────────────────┘
-```
+![CI/CD Pipeline](images/cicd-pipeline.png)
+
+*Security scanning, testing, and containerized deployment via GitHub Actions and Terraform.*
 
 ## Network Security
 
@@ -189,28 +67,6 @@ Admin Access → SSH Tunnel → Bastion → pgAdmin → Database
 | **CI** | GitHub Actions | Test & build |
 | **CD** | Terraform | Deploy infrastructure |
 | **Registry** | ACR | Container images |
-
-## Security Features
-
-1. **Network Isolation**
-   - Bastion in private subnet (no public IP)
-   - Database with private endpoint only
-   - Container apps in isolated subnet
-
-2. **Access Control**
-   - SSH key authentication for bastion
-   - JWT tokens for API
-   - Database credentials via secrets
-
-3. **Secrets Management**
-   - GitHub Secrets for CI/CD
-   - Azure Key Vault integration
-   - Environment variables for containers
-
-4. **Automated Updates**
-   - CI/CD pipeline for application
-   - Terraform for infrastructure
-   - Puppet for bastion configuration
 
 ## Monitoring & Observability
 

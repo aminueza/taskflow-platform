@@ -48,6 +48,7 @@ See [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for details.
 ## Documentation
 
 - [INFRASTRUCTURE_DIAGRAM.md](docs/INFRASTRUCTURE_DIAGRAM.md) - Architecture and network topology
+- [SECURITY.md](docs/SECURITY.md) - Security model, OIDC, least privilege
 - [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) - Local setup, testing, deployment
 - [ADMINISTRATOR_GUIDE.md](docs/ADMINISTRATOR_GUIDE.md) - Operations and database management
 - [BASTION_PROXY_SETUP.md](docs/BASTION_PROXY_SETUP.md) - Proxy configuration

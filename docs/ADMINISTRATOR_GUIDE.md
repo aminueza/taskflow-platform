@@ -25,14 +25,6 @@
 | **Container Apps** | Docker + Azure | Application runtime | HTTPS/Azure Portal |
 | **Infrastructure** | Terraform | IaC management | GitHub Actions |
 
-### Administrator Responsibilities
-
-✅ **Infrastructure Management** - Deploy and maintain cloud resources
-✅ **Database Operations** - Backups, migrations, performance tuning
-✅ **Security** - Access control, secrets management, compliance
-✅ **Monitoring** - Application health, performance metrics
-✅ **Incident Response** - Troubleshooting, root cause analysis
-
 ---
 
 ## Initial Setup
@@ -287,132 +279,6 @@ ssh -L 5432:postgres-server:5432 adminuser@bastion-vm
 psql -h localhost -p 5432 -U dbadmin -d taskflow_production
 ```
 
-#### Common Database Operations
-
-```sql
--- List all databases
-\l
-
--- Connect to database
-\c taskflow_production
-
--- List tables
-\dt
-
--- Check table size
-SELECT
-    schemaname,
-    tablename,
-    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
-FROM pg_tables
-WHERE schemaname = 'public'
-ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
-
--- Check active connections
-SELECT * FROM pg_stat_activity;
-
--- Terminate idle connections
-SELECT pg_terminate_backend(pid)
-FROM pg_stat_activity
-WHERE state = 'idle'
-AND state_change < current_timestamp - INTERVAL '30 minutes';
-
--- Vacuum database
-VACUUM ANALYZE;
-```
-
-### Database Performance Tuning
-
-#### Check Slow Queries
-
-```sql
--- Enable pg_stat_statements
-CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
-
--- View slowest queries
-SELECT
-    mean_exec_time,
-    calls,
-    query
-FROM pg_stat_statements
-ORDER BY mean_exec_time DESC
-LIMIT 10;
-```
-
-#### Add Indexes
-
-```sql
--- Check missing indexes
-SELECT
-    schemaname,
-    tablename,
-    attname,
-    n_distinct,
-    correlation
-FROM pg_stats
-WHERE schemaname = 'public'
-AND n_distinct > 100
-ORDER BY n_distinct DESC;
-
--- Create index
-CREATE INDEX CONCURRENTLY idx_users_email ON users(email);
-```
-
-### Database Backups
-
-#### Automated Backups
-
-Azure PostgreSQL Flexible Server provides automated backups:
-
-```bash
-# View backup configuration
-az postgres flexible-server show \
-  --resource-group rg-taskflow-dev-weu \
-  --name postgres-taskflow-dev-weu \
-  --query '{backupRetentionDays:backup.backupRetentionDays}'
-
-# List available backups
-az postgres flexible-server backup list \
-  --resource-group rg-taskflow-dev-weu \
-  --name postgres-taskflow-dev-weu
-```
-
-#### Manual Backup
-
-```bash
-# Create manual backup
-pg_dump -h localhost -U dbadmin taskflow_production > backup_$(date +%Y%m%d).sql
-
-# Compress backup
-gzip backup_$(date +%Y%m%d).sql
-
-# Upload to Azure Storage
-az storage blob upload \
-  --account-name taskflowbackups \
-  --container-name database-backups \
-  --name backup_$(date +%Y%m%d).sql.gz \
-  --file backup_$(date +%Y%m%d).sql.gz
-```
-
-#### Restore from Backup
-
-```bash
-# Download backup
-az storage blob download \
-  --account-name taskflowbackups \
-  --container-name database-backups \
-  --name backup_20260120.sql.gz \
-  --file restore.sql.gz
-
-# Decompress
-gunzip restore.sql.gz
-
-# Restore (CAUTION: This will overwrite data!)
-psql -h localhost -U dbadmin taskflow_production < restore.sql
-```
-
----
-
 ## Infrastructure Management
 
 ### Deploying Infrastructure
@@ -459,22 +325,6 @@ vi terraform.tfvars
 # Initialize and apply
 terraform init
 terraform apply
-```
-
-### Infrastructure Updates
-
-```bash
-# View current state
-terraform show
-
-# Plan changes
-terraform plan
-
-# Apply changes
-terraform apply
-
-# View outputs
-terraform output
 ```
 
 ### Infrastructure Destruction
@@ -698,50 +548,6 @@ terraform-compliance -f compliance-policy/
 | **Region outage** | 1 hour | 4 hours | Failover to secondary region |
 | **Data corruption** | 24 hours | 2 hours | Restore from daily backup |
 
-### Recovery Procedures
-
-#### Restore Database
-
-```bash
-# 1. List available backups
-az postgres flexible-server backup list \
-  --resource-group rg-taskflow-dev-weu \
-  --name postgres-taskflow-dev-weu
-
-# 2. Restore to new server
-az postgres flexible-server restore \
-  --resource-group rg-taskflow-dev-weu \
-  --name postgres-taskflow-restored \
-  --source-server postgres-taskflow-dev-weu \
-  --restore-time "2026-01-20T10:00:00Z"
-
-# 3. Update application connection string
-# 4. Verify data integrity
-```
-
-#### Rollback Application
-
-```bash
-# 1. Find previous working version
-az acr repository show-tags \
-  --name myregistry \
-  --repository api \
-  --orderby time_desc
-
-# 2. Update Terraform with previous digest
-cd infrastructure/terraform/applications
-vi terraform.tfvars.template
-# Update __API_IMAGE__ to previous digest
-
-# 3. Deploy
-terraform apply
-
-# 4. Verify application health
-curl https://api.taskflow.com/health
-```
-
----
-
 ## Troubleshooting
 
 ### Common Issues
@@ -802,86 +608,6 @@ az network nsg show \
 # Verify SSH key
 ssh-keygen -l -f ~/.ssh/id_rsa.pub
 ```
-
-### Performance Issues
-
-#### High Database Load
-
-```sql
--- Find long-running queries
-SELECT pid, now() - pg_stat_activity.query_start AS duration, query
-FROM pg_stat_activity
-WHERE state = 'active'
-AND now() - pg_stat_activity.query_start > interval '5 minutes';
-
--- Kill long-running query
-SELECT pg_terminate_backend(pid);
-
--- Check table bloat
-SELECT
-    schemaname || '.' || tablename AS table,
-    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
-FROM pg_tables
-WHERE schemaname = 'public'
-ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
-```
-
-#### Container App Memory Issues
-
-```bash
-# Check resource usage
-az containerapp show \
-  --name ca-api-dev-weu \
-  --resource-group rg-taskflow-dev-weu \
-  --query properties.template.containers[0].resources
-
-# Scale up if needed
-cd infrastructure/terraform/applications
-# Edit terraform.tfvars.template
-# memory = "2Gi"  # increase from 1Gi
-terraform apply
-```
-
----
-
-## Maintenance Tasks
-
-### Weekly Tasks
-
-- [ ] Review error logs
-- [ ] Check database backup status
-- [ ] Monitor disk space usage
-- [ ] Review security alerts
-- [ ] Check certificate expiration
-
-### Monthly Tasks
-
-- [ ] Database performance tuning
-- [ ] Clean up old backups
-- [ ] Review and update access controls
-- [ ] Test disaster recovery procedures
-- [ ] Update infrastructure documentation
-
-### Quarterly Tasks
-
-- [ ] Security audit
-- [ ] Infrastructure cost optimization
-- [ ] Capacity planning review
-- [ ] Update Terraform modules
-- [ ] Rotate credentials
-
----
-
-## Emergency Contacts
-
-| Role | Contact | Escalation |
-|------|---------|------------|
-| **On-Call Engineer** | oncall@taskflow.com | 24/7 |
-| **DevOps Lead** | devops-lead@taskflow.com | Business hours |
-| **Security Team** | security@taskflow.com | 24/7 |
-| **Azure Support** | Azure Portal | Premium support |
-
----
 
 ## Resources
 
