@@ -86,7 +86,6 @@ RSpec.describe Auditable, type: :model do
       end
 
       it 'logs the error and does not raise' do
-        allow(Rails.logger).to receive(:error)
         expect { instance.save! }.not_to raise_error
         expect(Rails.logger).to have_received(:error).with(
           hash_including(

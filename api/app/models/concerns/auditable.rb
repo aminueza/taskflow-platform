@@ -4,7 +4,7 @@ module Auditable
   extend ActiveSupport::Concern
 
   included do
-    has_many :audit_logs, as: :auditable, dependent: :destroy
+    has_many :audit_logs, as: :resource, dependent: :destroy
     after_commit :log_change, on: %i[create update destroy]
   end
 
@@ -17,13 +17,15 @@ module Auditable
              when :destroy then 'destroyed'
              end
 
+    current = defined?(Current) ? Current : nil
+
     AuditLog.create!(
-      auditable: self,
+      resource: self,
       action: action,
-      changes: saved_changes,
-      ip_address: Current.ip_address,
-      user_agent: Current.user_agent,
-      user_id: Current.user&.id
+      metadata: saved_changes,
+      ip_address: current&.ip_address,
+      user_agent: current&.user_agent,
+      user_id: current&.user&.id
     )
   rescue StandardError => e
     Rails.logger.error(
