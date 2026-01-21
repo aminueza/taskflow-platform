@@ -6,11 +6,18 @@ Rails.application.configure do
   config.consider_all_requests_local = false
   config.public_file_server.enabled = true
 
-  # Cache configuration with Redis
-  config.cache_store = :redis_cache_store, {
-    url: ENV.fetch('REDIS_URL', 'redis://localhost:6379/0'),
-    expires_in: 1.hour
-  }
+  # Cache configuration - use Redis if available, otherwise memory store
+  if ENV['REDIS_URL'].present?
+    config.cache_store = :redis_cache_store, {
+      url: ENV['REDIS_URL'],
+      expires_in: 1.hour,
+      error_handler: ->(method:, returning:, exception:) {
+        Rails.logger.warn "Redis cache error: #{exception.message}"
+      }
+    }
+  else
+    config.cache_store = :memory_store, { size: 64.megabytes }
+  end
 
   config.log_level = ENV.fetch('RAILS_LOG_LEVEL', 'info')
   config.log_tags = [:request_id]
