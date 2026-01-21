@@ -15,7 +15,13 @@ RSpec.describe Auditable, type: :model do
     end
   end
 
-  let(:instance) { test_class.new(username: 'test', email: 'test@example.com', password: 'password123') }
+  let(:instance) do
+    test_class.new(
+      username: 'test',
+      email: 'test@example.com',
+      password_digest: BCrypt::Password.create('password123')
+    )
+  end
 
   describe 'associations' do
     it 'has many audit_logs' do
