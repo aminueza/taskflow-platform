@@ -1,0 +1,359 @@
+name: "Code Linting"
+description: "Run linting for Ruby (RuboCop) and/or Frontend (ESLint) applications"
+
+inputs:
+  app-type:
+    description: "Application type: ruby, frontend, or both"
+    required: true
+    default: "both"
+  ruby-version:
+    description: "Ruby version for RuboCop"
+    required: false
+    default: "3.2"
+  ruby-working-directory:
+    description: "Working directory for Ruby app"
+    required: false
+    default: "./api"
+  rubocop-args:
+    description: "Additional RuboCop arguments"
+    required: false
+    default: "--format github"
+  run-brakeman:
+    description: "Run Brakeman security scanner"
+    required: false
+    default: "true"
+  node-version:
+    description: "Node.js version for ESLint"
+    required: false
+    default: "20"
+  frontend-working-directory:
+    description: "Working directory for Frontend app"
+    required: false
+    default: "./frontend"
+  eslint-args:
+    description: "Additional ESLint arguments"
+    required: false
+    default: ""
+  package-manager:
+    description: "Package manager: npm, yarn, or pnpm"
+    required: false
+    default: "npm"
+  fail-on-error:
+    description: "Fail the workflow if linting errors are found"
+    required: false
+    default: "true"
+  generate-annotations:
+    description: "Generate GitHub annotations for lint errors"
+    required: false
+    default: "true"
+
+outputs:
+  ruby-status:
+    description: "Ruby linting status (success/failure/skipped)"
+    value: ${{ steps.ruby-lint.outputs.status || 'skipped' }}
+  frontend-status:
+    description: "Frontend linting status (success/failure/skipped)"
+    value: ${{ steps.frontend-lint.outputs.status || 'skipped' }}
+  brakeman-status:
+    description: "Brakeman security scan status (success/failure/skipped)"
+    value: ${{ steps.brakeman.outputs.status || 'skipped' }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: "💎 Setup Ruby"
+      if: ${{ inputs.app-type == 'ruby' || inputs.app-type == 'both' }}
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+        bundler-cache: true
+        working-directory: ${{ inputs.ruby-working-directory }}
+
+    - name: "💎 Install Ruby dependencies"
+      if: ${{ inputs.app-type == 'ruby' || inputs.app-type == 'both' }}
+      shell: bash
+      working-directory: ${{ inputs.ruby-working-directory }}
+      run: |
+        bundle install --jobs 4 --retry 3
+
+    - name: "🔍 Run RuboCop"
+      id: ruby-lint
+      if: ${{ inputs.app-type == 'ruby' || inputs.app-type == 'both' }}
+      shell: bash
+      working-directory: ${{ inputs.ruby-working-directory }}
+      continue-on-error: ${{ inputs.fail-on-error != 'true' }}
+      run: |
+        echo "🔍 Running RuboCop..."
+        
+        # Run RuboCop with JSON output for processing
+        set +e
+        bundle exec rubocop ${{ inputs.rubocop-args }} --format json --out rubocop-results.json
+        RUBOCOP_EXIT=$?
+        set -e
+        
+        # Also run with progress format for console output
+        bundle exec rubocop ${{ inputs.rubocop-args }} --format progress || true
+        
+        # Generate summary
+        if [ -f rubocop-results.json ]; then
+          OFFENSE_COUNT=$(jq '.summary.offense_count // 0' rubocop-results.json)
+          FILES_INSPECTED=$(jq '.summary.inspected_file_count // 0' rubocop-results.json)
+          
+          {
+            echo "### 💎 RuboCop Results"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Files Inspected | ${FILES_INSPECTED} |"
+            echo "| Offenses Found | ${OFFENSE_COUNT} |"
+            echo ""
+            
+            if [ "${OFFENSE_COUNT}" -gt 0 ]; then
+              echo "<details><summary>📋 Offense Details</summary>"
+              echo ""
+              echo '```'
+              jq -r '.files[] | select(.offenses | length > 0) | "\(.path):\n" + (.offenses[] | "  Line \(.location.line): [\(.severity)] \(.message) (\(.cop_name))")' rubocop-results.json | head -50
+              echo '```'
+              echo "</details>"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ ${RUBOCOP_EXIT} -eq 0 ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ RuboCop passed!"
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "❌ RuboCop found issues"
+          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+            exit ${RUBOCOP_EXIT}
+          fi
+        fi
+
+    - name: "🛡️ Run Brakeman Security Scanner"
+      id: brakeman
+      if: ${{ (inputs.app-type == 'ruby' || inputs.app-type == 'both') && inputs.run-brakeman == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.ruby-working-directory }}
+      continue-on-error: ${{ inputs.fail-on-error != 'true' }}
+      run: |
+        echo "🛡️ Running Brakeman security scan..."
+        
+        set +e
+        bundle exec brakeman --format json --output brakeman-results.json --no-pager
+        BRAKEMAN_EXIT=$?
+        set -e
+        
+        # Console output
+        bundle exec brakeman --no-pager || true
+        
+        # Generate summary
+        if [ -f brakeman-results.json ]; then
+          WARNING_COUNT=$(jq '.warnings | length' brakeman-results.json)
+          ERROR_COUNT=$(jq '.errors | length' brakeman-results.json)
+          
+          {
+            echo "### 🛡️ Brakeman Security Scan"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Warnings | ${WARNING_COUNT} |"
+            echo "| Errors | ${ERROR_COUNT} |"
+            echo ""
+            
+            if [ "${WARNING_COUNT}" -gt 0 ]; then
+              echo "<details><summary>⚠️ Security Warnings</summary>"
+              echo ""
+              echo '```'
+              jq -r '.warnings[] | "[\(.confidence)] \(.warning_type): \(.message) in \(.file):\(.line)"' brakeman-results.json | head -20
+              echo '```'
+              echo "</details>"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ ${BRAKEMAN_EXIT} -eq 0 ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ Brakeman passed!"
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "⚠️ Brakeman found security issues"
+          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+            exit ${BRAKEMAN_EXIT}
+          fi
+        fi
+
+    - name: "📦 Setup Node.js"
+      if: ${{ inputs.app-type == 'frontend' || inputs.app-type == 'both' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.package-manager }}
+        cache-dependency-path: ${{ inputs.frontend-working-directory }}/package-lock.json
+
+    - name: "📦 Install Frontend dependencies"
+      if: ${{ inputs.app-type == 'frontend' || inputs.app-type == 'both' }}
+      shell: bash
+      working-directory: ${{ inputs.frontend-working-directory }}
+      run: |
+        if [ "${{ inputs.package-manager }}" == "npm" ]; then
+          npm ci
+        elif [ "${{ inputs.package-manager }}" == "yarn" ]; then
+          yarn install --frozen-lockfile
+        elif [ "${{ inputs.package-manager }}" == "pnpm" ]; then
+          pnpm install --frozen-lockfile
+        fi
+
+    - name: "🔍 Run ESLint"
+      id: frontend-lint
+      if: ${{ inputs.app-type == 'frontend' || inputs.app-type == 'both' }}
+      shell: bash
+      working-directory: ${{ inputs.frontend-working-directory }}
+      continue-on-error: ${{ inputs.fail-on-error != 'true' }}
+      run: |
+        echo "🔍 Running ESLint..."
+        
+        # Check if lint script exists in package.json
+        if npm run lint --if-present 2>/dev/null; then
+          HAS_LINT_SCRIPT=true
+        else
+          HAS_LINT_SCRIPT=false
+        fi
+        
+        set +e
+        
+        # Run ESLint with JSON output
+        if [ "$HAS_LINT_SCRIPT" == "true" ]; then
+          npm run lint -- --format json --output-file eslint-results.json ${{ inputs.eslint-args }} 2>/dev/null || \
+          npx eslint . --ext ts,tsx,js,jsx --format json --output-file eslint-results.json ${{ inputs.eslint-args }}
+        else
+          npx eslint . --ext ts,tsx,js,jsx --format json --output-file eslint-results.json ${{ inputs.eslint-args }}
+        fi
+        ESLINT_EXIT=$?
+        set -e
+        
+        # Console output with stylish format
+        if [ "$HAS_LINT_SCRIPT" == "true" ]; then
+          npm run lint ${{ inputs.eslint-args }} || true
+        else
+          npx eslint . --ext ts,tsx,js,jsx ${{ inputs.eslint-args }} || true
+        fi
+        
+        # Generate summary
+        if [ -f eslint-results.json ]; then
+          ERROR_COUNT=$(jq '[.[].errorCount] | add // 0' eslint-results.json)
+          WARNING_COUNT=$(jq '[.[].warningCount] | add // 0' eslint-results.json)
+          FILES_CHECKED=$(jq 'length' eslint-results.json)
+          
+          {
+            echo "### 📦 ESLint Results"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Files Checked | ${FILES_CHECKED} |"
+            echo "| Errors | ${ERROR_COUNT} |"
+            echo "| Warnings | ${WARNING_COUNT} |"
+            echo ""
+            
+            TOTAL_ISSUES=$((ERROR_COUNT + WARNING_COUNT))
+            if [ "${TOTAL_ISSUES}" -gt 0 ]; then
+              echo "<details><summary>📋 Issue Details</summary>"
+              echo ""
+              echo '```'
+              jq -r '.[] | select(.messages | length > 0) | "\(.filePath):\n" + (.messages[] | "  Line \(.line):\(.column) [\(.severity == 2 | if . then "error" else "warning" end)] \(.message) (\(.ruleId))")' eslint-results.json | head -50
+              echo '```'
+              echo "</details>"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ ${ESLINT_EXIT} -eq 0 ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ ESLint passed!"
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "❌ ESLint found issues"
+          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+            exit ${ESLINT_EXIT}
+          fi
+        fi
+
+    - name: "📝 Run TypeScript Type Check"
+      id: typecheck
+      if: ${{ inputs.app-type == 'frontend' || inputs.app-type == 'both' }}
+      shell: bash
+      working-directory: ${{ inputs.frontend-working-directory }}
+      continue-on-error: true
+      run: |
+        echo "📝 Running TypeScript type check..."
+        
+        if [ -f tsconfig.json ]; then
+          set +e
+          npx tsc --noEmit 2>&1 | tee tsc-output.txt
+          TSC_EXIT=${PIPESTATUS[0]}
+          set -e
+          
+          if [ ${TSC_EXIT} -eq 0 ]; then
+            echo "✅ TypeScript check passed!"
+            echo "### ✅ TypeScript" >> $GITHUB_STEP_SUMMARY
+            echo "No type errors found." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ TypeScript found type errors"
+            {
+              echo "### ⚠️ TypeScript Errors"
+              echo ""
+              echo '```'
+              cat tsc-output.txt | head -30
+              echo '```'
+            } >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "⏭️ No tsconfig.json found, skipping TypeScript check"
+        fi
+
+    - name: "📊 Generate Final Summary"
+      if: always()
+      shell: bash
+      env:
+        APP_TYPE: ${{ inputs.app-type }}
+        RUBY_STATUS: ${{ steps.ruby-lint.outputs.status || 'skipped' }}
+        BRAKEMAN_STATUS: ${{ steps.brakeman.outputs.status || 'skipped' }}
+        FRONTEND_STATUS: ${{ steps.frontend-lint.outputs.status || 'skipped' }}
+      run: |
+        {
+          echo ""
+          echo "---"
+          echo "### 📊 Lint Summary"
+          echo ""
+          echo "| Check | Status |"
+          echo "|-------|--------|"
+          
+          if [ "${APP_TYPE}" == "ruby" ] || [ "${APP_TYPE}" == "both" ]; then
+            if [ "${RUBY_STATUS}" == "success" ]; then
+              echo "| RuboCop | ✅ Passed |"
+            elif [ "${RUBY_STATUS}" == "failure" ]; then
+              echo "| RuboCop | ❌ Failed |"
+            else
+              echo "| RuboCop | ⏭️ Skipped |"
+            fi
+            
+            if [ "${BRAKEMAN_STATUS}" == "success" ]; then
+              echo "| Brakeman | ✅ Passed |"
+            elif [ "${BRAKEMAN_STATUS}" == "failure" ]; then
+              echo "| Brakeman | ⚠️ Warnings |"
+            else
+              echo "| Brakeman | ⏭️ Skipped |"
+            fi
+          fi
+          
+          if [ "${APP_TYPE}" == "frontend" ] || [ "${APP_TYPE}" == "both" ]; then
+            if [ "${FRONTEND_STATUS}" == "success" ]; then
+              echo "| ESLint | ✅ Passed |"
+            elif [ "${FRONTEND_STATUS}" == "failure" ]; then
+              echo "| ESLint | ❌ Failed |"
+            else
+              echo "| ESLint | ⏭️ Skipped |"
+            fi
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+

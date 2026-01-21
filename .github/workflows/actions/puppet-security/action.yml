@@ -1,0 +1,347 @@
+name: "Puppet Security Scan"
+description: "Security scanning for Puppet code including secret detection, vulnerability checks, and compliance validation"
+
+inputs:
+  puppet-dir:
+    description: "Path to Puppet code directory"
+    required: false
+    default: "./puppet"
+  ruby-version:
+    description: "Ruby version"
+    required: false
+    default: "3.2"
+  scan-secrets:
+    description: "Scan for hardcoded secrets"
+    required: false
+    default: "true"
+  scan-vulnerabilities:
+    description: "Scan for vulnerable dependencies"
+    required: false
+    default: "true"
+  fail-on-high:
+    description: "Fail on HIGH severity findings"
+    required: false
+    default: "true"
+  fail-on-critical:
+    description: "Fail on CRITICAL severity findings"
+    required: false
+    default: "true"
+  additional-checks:
+    description: "Additional puppet-lint checks (comma-separated)"
+    required: false
+    default: ""
+
+outputs:
+  status:
+    description: "Security scan status (success/failure)"
+    value: ${{ steps.security-summary.outputs.status }}
+  secrets-found:
+    description: "Number of potential secrets found"
+    value: ${{ steps.secret-scan.outputs.count || '0' }}
+  vulnerabilities-found:
+    description: "Number of vulnerabilities found"
+    value: ${{ steps.vuln-scan.outputs.count || '0' }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: "💎 Setup Ruby"
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+
+    - name: "📦 Install Security Tools"
+      shell: bash
+      run: |
+        echo "📦 Installing Puppet security tools..."
+        gem install puppet-lint --no-document
+        gem install puppet-lint-security-plugins --no-document || true
+        gem install puppet-lint-param-docs --no-document || true
+        gem install gitleaks --no-document || true
+        
+        # Install trivy for dependency scanning
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin latest
+
+    - name: "🔍 Validate Puppet Syntax"
+      id: syntax-check
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      run: |
+        echo "🔍 Validating Puppet syntax..."
+        
+        ERRORS=0
+        while IFS= read -r -d '' file; do
+          if ! puppet parser validate "$file" 2>&1; then
+            ((ERRORS++))
+          fi
+        done < <(find . -name "*.pp" -print0)
+        
+        if [ $ERRORS -gt 0 ]; then
+          echo "❌ Found $ERRORS syntax errors"
+          echo "syntax-errors=$ERRORS" >> $GITHUB_OUTPUT
+        else
+          echo "✅ All manifests have valid syntax"
+          echo "syntax-errors=0" >> $GITHUB_OUTPUT
+        fi
+
+    - name: "🛡️ Run Security Lint Checks"
+      id: security-lint
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      continue-on-error: true
+      run: |
+        echo "🛡️ Running security-focused lint checks..."
+        
+        # Security-focused puppet-lint checks
+        LINT_ARGS="--fail-on-warnings"
+        LINT_ARGS="$LINT_ARGS --error-level all"
+        
+        # Check for security issues
+        set +e
+        puppet-lint $LINT_ARGS \
+          --no-80chars-check \
+          --no-class_inherits_from_params_class-check \
+          . 2>&1 | tee lint-results.txt
+        LINT_EXIT=$?
+        set -e
+        
+        # Count issues
+        ERRORS=$(grep -c "ERROR" lint-results.txt || echo "0")
+        WARNINGS=$(grep -c "WARNING" lint-results.txt || echo "0")
+        
+        echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+        echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+        
+        {
+          echo "### 🛡️ Puppet Security Lint"
+          echo ""
+          echo "| Severity | Count |"
+          echo "|----------|-------|"
+          echo "| Errors | $ERRORS |"
+          echo "| Warnings | $WARNINGS |"
+          echo ""
+          
+          if [ -s lint-results.txt ]; then
+            echo "<details><summary>📋 Lint Details</summary>"
+            echo ""
+            echo '```'
+            cat lint-results.txt | head -50
+            echo '```'
+            echo "</details>"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+
+    - name: "🔐 Scan for Hardcoded Secrets"
+      id: secret-scan
+      if: ${{ inputs.scan-secrets == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      continue-on-error: true
+      run: |
+        echo "🔐 Scanning for hardcoded secrets..."
+        
+        SECRET_COUNT=0
+        FINDINGS=""
+        
+        # Pattern-based secret detection
+        PATTERNS=(
+          'password\s*=\s*["\x27][^"\x27]{8,}["\x27]'
+          'secret\s*=\s*["\x27][^"\x27]{8,}["\x27]'
+          'api_key\s*=\s*["\x27][^"\x27]{16,}["\x27]'
+          'token\s*=\s*["\x27][^"\x27]{16,}["\x27]'
+          'private_key\s*=\s*["\x27]-----BEGIN'
+          'aws_access_key_id\s*=\s*["\x27]AK'
+          'aws_secret_access_key\s*=\s*["\x27]'
+        )
+        
+        for pattern in "${PATTERNS[@]}"; do
+          MATCHES=$(grep -rniE "$pattern" --include="*.pp" --include="*.yaml" --include="*.erb" . 2>/dev/null || true)
+          if [ -n "$MATCHES" ]; then
+            COUNT=$(echo "$MATCHES" | wc -l)
+            SECRET_COUNT=$((SECRET_COUNT + COUNT))
+            FINDINGS+="$MATCHES\n"
+          fi
+        done
+        
+        # Exclude known safe patterns (Sensitive type, hiera lookups)
+        SAFE_PATTERNS="Sensitive\[|lookup\(|hiera\("
+        if [ -n "$FINDINGS" ]; then
+          FILTERED=$(echo -e "$FINDINGS" | grep -vE "$SAFE_PATTERNS" || true)
+          if [ -n "$FILTERED" ]; then
+            SECRET_COUNT=$(echo "$FILTERED" | grep -c "." || echo "0")
+          else
+            SECRET_COUNT=0
+          fi
+        fi
+        
+        echo "count=$SECRET_COUNT" >> $GITHUB_OUTPUT
+        
+        {
+          echo "### 🔐 Secret Detection"
+          echo ""
+          if [ $SECRET_COUNT -gt 0 ]; then
+            echo "⚠️ **Found $SECRET_COUNT potential hardcoded secrets**"
+            echo ""
+            echo "<details><summary>📋 Findings (review carefully)</summary>"
+            echo ""
+            echo '```'
+            echo -e "$FILTERED" | head -20
+            echo '```'
+            echo "</details>"
+            echo ""
+            echo "> **Note:** Some findings may be false positives. Review each carefully."
+          else
+            echo "✅ No hardcoded secrets detected"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+
+    - name: "📦 Scan for Vulnerable Dependencies"
+      id: vuln-scan
+      if: ${{ inputs.scan-vulnerabilities == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      continue-on-error: true
+      run: |
+        echo "📦 Scanning for vulnerable dependencies..."
+        
+        VULN_COUNT=0
+        
+        # Check metadata.json for each module
+        while IFS= read -r -d '' metadata; do
+          MODULE_DIR=$(dirname "$metadata")
+          MODULE_NAME=$(jq -r '.name // "unknown"' "$metadata")
+          
+          echo "Checking module: $MODULE_NAME"
+          
+          # Extract dependencies and check versions
+          DEPS=$(jq -r '.dependencies[]? | "\(.name) \(.version_requirement)"' "$metadata" 2>/dev/null || true)
+          
+          if [ -n "$DEPS" ]; then
+            echo "Dependencies: $DEPS"
+          fi
+        done < <(find . -name "metadata.json" -print0)
+        
+        # Run trivy on the puppet directory for config files
+        set +e
+        trivy fs --severity HIGH,CRITICAL --format json --output trivy-puppet.json . 2>/dev/null
+        TRIVY_EXIT=$?
+        set -e
+        
+        if [ -f trivy-puppet.json ]; then
+          VULN_COUNT=$(jq '[.Results[]?.Vulnerabilities // [] | length] | add // 0' trivy-puppet.json)
+        fi
+        
+        echo "count=$VULN_COUNT" >> $GITHUB_OUTPUT
+        
+        {
+          echo "### 📦 Dependency Vulnerabilities"
+          echo ""
+          if [ "$VULN_COUNT" -gt 0 ]; then
+            echo "⚠️ **Found $VULN_COUNT vulnerabilities**"
+            echo ""
+            echo "<details><summary>📋 Vulnerability Details</summary>"
+            echo ""
+            echo '```'
+            jq -r '.Results[]?.Vulnerabilities[]? | "[\(.Severity)] \(.PkgName): \(.Title // .VulnerabilityID)"' trivy-puppet.json 2>/dev/null | head -20
+            echo '```'
+            echo "</details>"
+          else
+            echo "✅ No known vulnerabilities detected"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+
+    - name: "🔒 Check Compliance Patterns"
+      id: compliance
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      continue-on-error: true
+      run: |
+        echo "🔒 Checking security compliance patterns..."
+        
+        ISSUES=0
+        
+        # Check for proper file permissions
+        echo "Checking file permission patterns..."
+        UNSAFE_PERMS=$(grep -rn "mode\s*=>\s*['\"]0[67][0-7][0-7]" --include="*.pp" . 2>/dev/null || true)
+        if [ -n "$UNSAFE_PERMS" ]; then
+          PERM_COUNT=$(echo "$UNSAFE_PERMS" | wc -l)
+          ISSUES=$((ISSUES + PERM_COUNT))
+        fi
+        
+        # Check for exec without path
+        echo "Checking exec resources..."
+        UNSAFE_EXEC=$(grep -rn "exec\s*{" --include="*.pp" -A5 . 2>/dev/null | grep -v "path\s*=>" | grep "command\s*=>" || true)
+        
+        # Check for unencrypted sensitive data
+        echo "Checking for unencrypted sensitive data..."
+        UNENCRYPTED=$(grep -rn "password\s*=>" --include="*.pp" . 2>/dev/null | grep -v "Sensitive" || true)
+        if [ -n "$UNENCRYPTED" ]; then
+          ENC_COUNT=$(echo "$UNENCRYPTED" | wc -l)
+          ISSUES=$((ISSUES + ENC_COUNT))
+        fi
+        
+        echo "issues=$ISSUES" >> $GITHUB_OUTPUT
+        
+        {
+          echo "### 🔒 Compliance Checks"
+          echo ""
+          echo "| Check | Status |"
+          echo "|-------|--------|"
+          
+          if [ -z "$UNSAFE_PERMS" ]; then
+            echo "| File Permissions | ✅ Passed |"
+          else
+            echo "| File Permissions | ⚠️ Review Needed |"
+          fi
+          
+          if [ -z "$UNENCRYPTED" ]; then
+            echo "| Sensitive Data | ✅ Using Sensitive[] |"
+          else
+            echo "| Sensitive Data | ⚠️ Unprotected passwords |"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+
+    - name: "📊 Generate Security Summary"
+      id: security-summary
+      if: always()
+      shell: bash
+      env:
+        SYNTAX_ERRORS: ${{ steps.syntax-check.outputs.syntax-errors || '0' }}
+        LINT_ERRORS: ${{ steps.security-lint.outputs.errors || '0' }}
+        SECRETS_FOUND: ${{ steps.secret-scan.outputs.count || '0' }}
+        VULNS_FOUND: ${{ steps.vuln-scan.outputs.count || '0' }}
+        COMPLIANCE_ISSUES: ${{ steps.compliance.outputs.issues || '0' }}
+        FAIL_ON_HIGH: ${{ inputs.fail-on-high }}
+        FAIL_ON_CRITICAL: ${{ inputs.fail-on-critical }}
+      run: |
+        {
+          echo ""
+          echo "---"
+          echo "### 📊 Security Scan Summary"
+          echo ""
+          echo "| Category | Findings |"
+          echo "|----------|----------|"
+          echo "| Syntax Errors | $SYNTAX_ERRORS |"
+          echo "| Lint Errors | $LINT_ERRORS |"
+          echo "| Potential Secrets | $SECRETS_FOUND |"
+          echo "| Vulnerabilities | $VULNS_FOUND |"
+          echo "| Compliance Issues | $COMPLIANCE_ISSUES |"
+        } >> $GITHUB_STEP_SUMMARY
+        
+        # Determine overall status
+        CRITICAL=$((SYNTAX_ERRORS + SECRETS_FOUND))
+        HIGH=$((LINT_ERRORS + VULNS_FOUND))
+        
+        if [ "$FAIL_ON_CRITICAL" == "true" ] && [ $CRITICAL -gt 0 ]; then
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "❌ Critical security issues found"
+          exit 1
+        elif [ "$FAIL_ON_HIGH" == "true" ] && [ $HIGH -gt 0 ]; then
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "⚠️ High severity issues found"
+          exit 1
+        else
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ Security scan passed"
+        fi
+

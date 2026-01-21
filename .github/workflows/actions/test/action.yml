@@ -1,0 +1,376 @@
+name: "Application Tests"
+description: "Run tests for Ruby (RSpec) and/or Frontend (Vitest/Jest) applications with coverage reporting"
+
+inputs:
+  app-type:
+    description: "Application type: ruby, frontend, or both"
+    required: true
+    default: "both"
+  ruby-version:
+    description: "Ruby version"
+    required: false
+    default: "3.2"
+  ruby-working-directory:
+    description: "Working directory for Ruby app"
+    required: false
+    default: "./api"
+  rspec-args:
+    description: "Additional RSpec arguments"
+    required: false
+    default: "--format documentation --format json --out rspec-results.json"
+  run-coverage:
+    description: "Generate code coverage report"
+    required: false
+    default: "true"
+  database-url:
+    description: "PostgreSQL connection URL"
+    required: false
+    default: "postgresql://postgres:postgres@localhost:5432/test_db"
+  setup-database:
+    description: "Run database setup commands"
+    required: false
+    default: "true"
+  database-setup-command:
+    description: "Command to setup database"
+    required: false
+    default: "bundle exec rails db:create db:schema:load"
+  node-version:
+    description: "Node.js version"
+    required: false
+    default: "20"
+  frontend-working-directory:
+    description: "Working directory for Frontend app"
+    required: false
+    default: "./frontend"
+  test-command:
+    description: "Frontend test command (npm test, npm run test:ci, etc.)"
+    required: false
+    default: "npm test -- --run"
+  package-manager:
+    description: "Package manager: npm, yarn, or pnpm"
+    required: false
+    default: "npm"
+
+  fail-on-error:
+    description: "Fail the workflow if tests fail"
+    required: false
+    default: "true"
+  upload-coverage:
+    description: "Upload coverage to Codecov"
+    required: false
+    default: "false"
+  codecov-token:
+    description: "Codecov token for coverage upload"
+    required: false
+    default: ""
+
+outputs:
+  ruby-status:
+    description: "Ruby test status (success/failure/skipped)"
+    value: ${{ steps.ruby-test.outputs.status || 'skipped' }}
+  ruby-tests-passed:
+    description: "Number of Ruby tests passed"
+    value: ${{ steps.ruby-test.outputs.tests-passed || '0' }}
+  ruby-tests-failed:
+    description: "Number of Ruby tests failed"
+    value: ${{ steps.ruby-test.outputs.tests-failed || '0' }}
+  frontend-status:
+    description: "Frontend test status (success/failure/skipped)"
+    value: ${{ steps.frontend-test.outputs.status || 'skipped' }}
+  frontend-tests-passed:
+    description: "Number of Frontend tests passed"
+    value: ${{ steps.frontend-test.outputs.tests-passed || '0' }}
+  frontend-tests-failed:
+    description: "Number of Frontend tests failed"
+    value: ${{ steps.frontend-test.outputs.tests-failed || '0' }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: "💎 Setup Ruby"
+      if: ${{ inputs.app-type == 'ruby' || inputs.app-type == 'both' }}
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+        bundler-cache: true
+        working-directory: ${{ inputs.ruby-working-directory }}
+
+    - name: "💎 Install Ruby dependencies"
+      if: ${{ inputs.app-type == 'ruby' || inputs.app-type == 'both' }}
+      shell: bash
+      working-directory: ${{ inputs.ruby-working-directory }}
+      run: |
+        bundle install --jobs 4 --retry 3
+
+    - name: "🗄️ Setup Database"
+      if: ${{ (inputs.app-type == 'ruby' || inputs.app-type == 'both') && inputs.setup-database == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.ruby-working-directory }}
+      env:
+        RAILS_ENV: test
+        DATABASE_URL: ${{ inputs.database-url }}
+      run: |
+        echo "🗄️ Setting up test database..."
+        ${{ inputs.database-setup-command }}
+        echo "✅ Database setup complete"
+
+    - name: "🧪 Run RSpec Tests"
+      id: ruby-test
+      if: ${{ inputs.app-type == 'ruby' || inputs.app-type == 'both' }}
+      shell: bash
+      working-directory: ${{ inputs.ruby-working-directory }}
+      continue-on-error: ${{ inputs.fail-on-error != 'true' }}
+      env:
+        RAILS_ENV: test
+        DATABASE_URL: ${{ inputs.database-url }}
+        COVERAGE: ${{ inputs.run-coverage }}
+      run: |
+        echo "🧪 Running RSpec tests..."
+        
+        set +e
+        bundle exec rspec ${{ inputs.rspec-args }} 2>&1 | tee rspec-output.log
+        RSPEC_EXIT=${PIPESTATUS[0]}
+        set -e
+        
+        # Parse results
+        if [ -f rspec-results.json ]; then
+          EXAMPLES=$(jq '.summary.example_count // 0' rspec-results.json)
+          FAILURES=$(jq '.summary.failure_count // 0' rspec-results.json)
+          PENDING=$(jq '.summary.pending_count // 0' rspec-results.json)
+          DURATION=$(jq '.summary.duration // 0' rspec-results.json)
+          PASSED=$((EXAMPLES - FAILURES - PENDING))
+          
+          echo "tests-passed=${PASSED}" >> $GITHUB_OUTPUT
+          echo "tests-failed=${FAILURES}" >> $GITHUB_OUTPUT
+          
+          # Generate summary
+          {
+            echo "### 💎 RSpec Test Results"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Total Examples | ${EXAMPLES} |"
+            echo "| ✅ Passed | ${PASSED} |"
+            echo "| ❌ Failed | ${FAILURES} |"
+            echo "| ⏸️ Pending | ${PENDING} |"
+            echo "| ⏱️ Duration | ${DURATION}s |"
+            echo ""
+            
+            if [ "${FAILURES}" -gt 0 ]; then
+              echo "<details><summary>❌ Failed Tests</summary>"
+              echo ""
+              echo '```'
+              jq -r '.examples[] | select(.status == "failed") | "❌ \(.full_description)\n   Location: \(.file_path):\(.line_number)\n   Error: \(.exception.message // "No message")\n"' rspec-results.json | head -50
+              echo '```'
+              echo "</details>"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+        else
+          # Fallback parsing from log
+          EXAMPLES=$(grep -oP '\d+(?= examples?)' rspec-output.log | head -1 || echo "0")
+          FAILURES=$(grep -oP '\d+(?= failures?)' rspec-output.log | head -1 || echo "0")
+          
+          echo "tests-passed=$((EXAMPLES - FAILURES))" >> $GITHUB_OUTPUT
+          echo "tests-failed=${FAILURES}" >> $GITHUB_OUTPUT
+          
+          {
+            echo "### 💎 RSpec Test Results"
+            echo ""
+            echo '```'
+            tail -20 rspec-output.log
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Check coverage if enabled
+        if [ "${{ inputs.run-coverage }}" == "true" ] && [ -d coverage ]; then
+          if [ -f coverage/.last_run.json ]; then
+            COVERAGE_PCT=$(jq '.result.line // 0' coverage/.last_run.json)
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### 📊 Code Coverage: ${COVERAGE_PCT}%" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+        
+        if [ ${RSPEC_EXIT} -eq 0 ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ All RSpec tests passed!"
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "❌ RSpec tests failed"
+          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+            exit ${RSPEC_EXIT}
+          fi
+        fi
+
+    - name: "📦 Setup Node.js"
+      if: ${{ inputs.app-type == 'frontend' || inputs.app-type == 'both' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.package-manager }}
+        cache-dependency-path: ${{ inputs.frontend-working-directory }}/package-lock.json
+
+    - name: "📦 Install Frontend dependencies"
+      if: ${{ inputs.app-type == 'frontend' || inputs.app-type == 'both' }}
+      shell: bash
+      working-directory: ${{ inputs.frontend-working-directory }}
+      run: |
+        if [ "${{ inputs.package-manager }}" == "npm" ]; then
+          npm ci
+        elif [ "${{ inputs.package-manager }}" == "yarn" ]; then
+          yarn install --frozen-lockfile
+        elif [ "${{ inputs.package-manager }}" == "pnpm" ]; then
+          pnpm install --frozen-lockfile
+        fi
+
+    - name: "🧪 Run Frontend Tests"
+      id: frontend-test
+      if: ${{ inputs.app-type == 'frontend' || inputs.app-type == 'both' }}
+      shell: bash
+      working-directory: ${{ inputs.frontend-working-directory }}
+      continue-on-error: ${{ inputs.fail-on-error != 'true' }}
+      env:
+        CI: true
+        NODE_ENV: test
+      run: |
+        echo "🧪 Running Frontend tests..."
+        
+        # Check if test script exists
+        if ! grep -q '"test"' package.json 2>/dev/null; then
+          echo "⏭️ No test script found in package.json, skipping..."
+          echo "status=skipped" >> $GITHUB_OUTPUT
+          echo "tests-passed=0" >> $GITHUB_OUTPUT
+          echo "tests-failed=0" >> $GITHUB_OUTPUT
+          echo "### 📦 Frontend Tests" >> $GITHUB_STEP_SUMMARY
+          echo "⏭️ Skipped - No test script configured" >> $GITHUB_STEP_SUMMARY
+          exit 0
+        fi
+        
+        set +e
+        
+        # Try to run with JSON reporter for better parsing
+        if grep -q "vitest" package.json 2>/dev/null; then
+          # Vitest
+          ${{ inputs.test-command }} --reporter=json --outputFile=test-results.json 2>&1 | tee test-output.log
+          TEST_EXIT=${PIPESTATUS[0]}
+          FRAMEWORK="Vitest"
+        else
+          # Jest or other
+          ${{ inputs.test-command }} --json --outputFile=test-results.json 2>&1 | tee test-output.log || \
+          ${{ inputs.test-command }} 2>&1 | tee test-output.log
+          TEST_EXIT=${PIPESTATUS[0]}
+          FRAMEWORK="Jest"
+        fi
+        set -e
+        
+        # Parse results
+        if [ -f test-results.json ]; then
+          if [ "${FRAMEWORK}" == "Vitest" ]; then
+            TOTAL=$(jq '.numTotalTests // 0' test-results.json 2>/dev/null || echo "0")
+            PASSED=$(jq '.numPassedTests // 0' test-results.json 2>/dev/null || echo "0")
+            FAILED=$(jq '.numFailedTests // 0' test-results.json 2>/dev/null || echo "0")
+          else
+            # Jest format
+            TOTAL=$(jq '.numTotalTests // 0' test-results.json 2>/dev/null || echo "0")
+            PASSED=$(jq '.numPassedTests // 0' test-results.json 2>/dev/null || echo "0")
+            FAILED=$(jq '.numFailedTests // 0' test-results.json 2>/dev/null || echo "0")
+          fi
+        else
+          # Parse from output
+          TOTAL=$(grep -oP '\d+(?= tests?)' test-output.log | head -1 || echo "0")
+          PASSED=$(grep -oP '\d+(?= passed)' test-output.log | head -1 || echo "0")
+          FAILED=$(grep -oP '\d+(?= failed)' test-output.log | head -1 || echo "0")
+        fi
+        
+        echo "tests-passed=${PASSED}" >> $GITHUB_OUTPUT
+        echo "tests-failed=${FAILED}" >> $GITHUB_OUTPUT
+        
+        # Generate summary
+        {
+          echo "### 📦 Frontend Test Results (${FRAMEWORK})"
+          echo ""
+          echo "| Metric | Value |"
+          echo "|--------|-------|"
+          echo "| Total Tests | ${TOTAL} |"
+          echo "| ✅ Passed | ${PASSED} |"
+          echo "| ❌ Failed | ${FAILED} |"
+          echo ""
+          
+          if [ "${FAILED}" -gt 0 ]; then
+            echo "<details><summary>❌ Failed Tests</summary>"
+            echo ""
+            echo '```'
+            grep -A 5 "FAIL\|✕\|×" test-output.log | head -50 || true
+            echo '```'
+            echo "</details>"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+        
+        if [ ${TEST_EXIT} -eq 0 ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ All Frontend tests passed!"
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "❌ Frontend tests failed"
+          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+            exit ${TEST_EXIT}
+          fi
+        fi
+
+    - name: "📊 Upload Coverage to Codecov"
+      if: ${{ inputs.upload-coverage == 'true' && inputs.codecov-token != '' }}
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ inputs.codecov-token }}
+        files: |
+          ${{ inputs.ruby-working-directory }}/coverage/coverage.xml
+          ${{ inputs.frontend-working-directory }}/coverage/lcov.info
+        fail_ci_if_error: false
+        verbose: true
+
+    - name: "📊 Generate Final Summary"
+      if: always()
+      shell: bash
+      env:
+        APP_TYPE: ${{ inputs.app-type }}
+        RUBY_STATUS: ${{ steps.ruby-test.outputs.status || 'skipped' }}
+        RUBY_PASSED: ${{ steps.ruby-test.outputs.tests-passed || '0' }}
+        RUBY_FAILED: ${{ steps.ruby-test.outputs.tests-failed || '0' }}
+        FRONTEND_STATUS: ${{ steps.frontend-test.outputs.status || 'skipped' }}
+        FRONTEND_PASSED: ${{ steps.frontend-test.outputs.tests-passed || '0' }}
+        FRONTEND_FAILED: ${{ steps.frontend-test.outputs.tests-failed || '0' }}
+      run: |
+        {
+          echo ""
+          echo "---"
+          echo "### 📊 Test Summary"
+          echo ""
+          echo "| Application | Status | Passed | Failed |"
+          echo "|-------------|--------|--------|--------|"
+          
+          if [ "${APP_TYPE}" == "ruby" ] || [ "${APP_TYPE}" == "both" ]; then
+            if [ "${RUBY_STATUS}" == "success" ]; then
+              echo "| Ruby (RSpec) | ✅ Passed | ${RUBY_PASSED} | ${RUBY_FAILED} |"
+            elif [ "${RUBY_STATUS}" == "failure" ]; then
+              echo "| Ruby (RSpec) | ❌ Failed | ${RUBY_PASSED} | ${RUBY_FAILED} |"
+            else
+              echo "| Ruby (RSpec) | ⏭️ Skipped | - | - |"
+            fi
+          fi
+          
+          if [ "${APP_TYPE}" == "frontend" ] || [ "${APP_TYPE}" == "both" ]; then
+            if [ "${FRONTEND_STATUS}" == "success" ]; then
+              echo "| Frontend | ✅ Passed | ${FRONTEND_PASSED} | ${FRONTEND_FAILED} |"
+            elif [ "${FRONTEND_STATUS}" == "failure" ]; then
+              echo "| Frontend | ❌ Failed | ${FRONTEND_PASSED} | ${FRONTEND_FAILED} |"
+            else
+              echo "| Frontend | ⏭️ Skipped | - | - |"
+            fi
+          fi
+          
+          # Total
+          TOTAL_PASSED=$((RUBY_PASSED + FRONTEND_PASSED))
+          TOTAL_FAILED=$((RUBY_FAILED + FRONTEND_FAILED))
+          echo "| **Total** | - | **${TOTAL_PASSED}** | **${TOTAL_FAILED}** |"
+        } >> $GITHUB_STEP_SUMMARY
+

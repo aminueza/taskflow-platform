@@ -1,0 +1,409 @@
+name: "Puppet Tests"
+description: "Run Puppet unit tests with rspec-puppet, syntax validation, and style checks"
+
+inputs:
+  puppet-dir:
+    description: "Path to Puppet code directory"
+    required: false
+    default: "./puppet"
+  ruby-version:
+    description: "Ruby version"
+    required: false
+    default: "3.2"
+  puppet-version:
+    description: "Puppet gem version"
+    required: false
+    default: "~> 8.0"
+  run-unit-tests:
+    description: "Run rspec-puppet unit tests"
+    required: false
+    default: "true"
+  run-syntax-check:
+    description: "Run puppet parser validate"
+    required: false
+    default: "true"
+  run-lint:
+    description: "Run puppet-lint style checks"
+    required: false
+    default: "true"
+  lint-fail-on-warnings:
+    description: "Fail lint on warnings"
+    required: false
+    default: "false"
+  modules-to-test:
+    description: "Comma-separated list of modules to test (empty = all)"
+    required: false
+    default: ""
+  parallel-tests:
+    description: "Run tests in parallel"
+    required: false
+    default: "true"
+  coverage:
+    description: "Generate code coverage report"
+    required: false
+    default: "true"
+  fail-on-error:
+    description: "Fail workflow on test failures"
+    required: false
+    default: "true"
+
+outputs:
+  status:
+    description: "Overall test status (success/failure)"
+    value: ${{ steps.test-summary.outputs.status }}
+  tests-passed:
+    description: "Number of tests passed"
+    value: ${{ steps.unit-tests.outputs.passed || '0' }}
+  tests-failed:
+    description: "Number of tests failed"
+    value: ${{ steps.unit-tests.outputs.failed || '0' }}
+  coverage-percent:
+    description: "Code coverage percentage"
+    value: ${{ steps.unit-tests.outputs.coverage || '0' }}
+  syntax-errors:
+    description: "Number of syntax errors"
+    value: ${{ steps.syntax-check.outputs.errors || '0' }}
+  lint-warnings:
+    description: "Number of lint warnings"
+    value: ${{ steps.lint-check.outputs.warnings || '0' }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: "💎 Setup Ruby"
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+
+    - name: "📦 Install Puppet & Testing Tools"
+      shell: bash
+      run: |
+        echo "📦 Installing Puppet testing tools..."
+        
+        # Install Puppet and core dependencies
+        gem install puppet ${{ inputs.puppet-version }} --no-document
+        gem install facter --no-document
+        gem install hiera --no-document
+        
+        # Install testing tools
+        gem install rspec-puppet --no-document
+        gem install rspec-puppet-facts --no-document
+        gem install puppetlabs_spec_helper --no-document
+        gem install puppet-lint --no-document
+        gem install metadata-json-lint --no-document
+        
+        # Install coverage tools
+        gem install simplecov --no-document
+        gem install simplecov-console --no-document
+        
+        # Parallel testing
+        if [ "${{ inputs.parallel-tests }}" == "true" ]; then
+          gem install parallel_tests --no-document
+        fi
+        
+        echo "✅ Tools installed successfully"
+        puppet --version
+        ruby --version
+
+    - name: "🔍 Validate Puppet Syntax"
+      id: syntax-check
+      if: ${{ inputs.run-syntax-check == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      continue-on-error: true
+      run: |
+        echo "🔍 Validating Puppet manifest syntax..."
+        
+        ERRORS=0
+        TOTAL=0
+        ERROR_FILES=""
+        
+        while IFS= read -r -d '' file; do
+          ((TOTAL++))
+          OUTPUT=$(puppet parser validate "$file" 2>&1)
+          if [ $? -ne 0 ]; then
+            ((ERRORS++))
+            ERROR_FILES+="$file: $OUTPUT\n"
+            echo "❌ $file"
+          else
+            echo "✅ $file"
+          fi
+        done < <(find . -name "*.pp" -print0)
+        
+        echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+        echo "total=$TOTAL" >> $GITHUB_OUTPUT
+        
+        {
+          echo "### 🔍 Syntax Validation"
+          echo ""
+          echo "| Metric | Value |"
+          echo "|--------|-------|"
+          echo "| Files Checked | $TOTAL |"
+          echo "| ✅ Valid | $((TOTAL - ERRORS)) |"
+          echo "| ❌ Errors | $ERRORS |"
+          
+          if [ $ERRORS -gt 0 ]; then
+            echo ""
+            echo "<details><summary>❌ Syntax Errors</summary>"
+            echo ""
+            echo '```'
+            echo -e "$ERROR_FILES"
+            echo '```'
+            echo "</details>"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+        
+        if [ $ERRORS -gt 0 ] && [ "${{ inputs.fail-on-error }}" == "true" ]; then
+          exit 1
+        fi
+
+    - name: "📝 Validate metadata.json"
+      id: metadata-check
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      continue-on-error: true
+      run: |
+        echo "📝 Validating module metadata..."
+        
+        ERRORS=0
+        
+        while IFS= read -r -d '' metadata; do
+          MODULE_DIR=$(dirname "$metadata")
+          MODULE_NAME=$(basename "$MODULE_DIR")
+          
+          echo "Checking: $MODULE_NAME"
+          
+          if metadata-json-lint "$metadata" 2>&1; then
+            echo "✅ $MODULE_NAME metadata valid"
+          else
+            ((ERRORS++))
+            echo "❌ $MODULE_NAME metadata invalid"
+          fi
+        done < <(find ./modules -name "metadata.json" -print0 2>/dev/null || true)
+        
+        echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+        
+        if [ $ERRORS -eq 0 ]; then
+          echo "✅ All metadata.json files are valid"
+        fi
+
+    - name: "🎨 Run Puppet Lint"
+      id: lint-check
+      if: ${{ inputs.run-lint == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      continue-on-error: true
+      run: |
+        echo "🎨 Running puppet-lint..."
+        
+        LINT_ARGS="--relative"
+        if [ "${{ inputs.lint-fail-on-warnings }}" == "true" ]; then
+          LINT_ARGS="$LINT_ARGS --fail-on-warnings"
+        fi
+        
+        # Common exclusions
+        LINT_ARGS="$LINT_ARGS --no-80chars-check"
+        LINT_ARGS="$LINT_ARGS --no-class_inherits_from_params_class-check"
+        LINT_ARGS="$LINT_ARGS --no-documentation-check"
+        
+        set +e
+        puppet-lint $LINT_ARGS . 2>&1 | tee lint-output.txt
+        LINT_EXIT=$?
+        set -e
+        
+        WARNINGS=$(grep -c "WARNING" lint-output.txt 2>/dev/null || echo "0")
+        ERRORS=$(grep -c "ERROR" lint-output.txt 2>/dev/null || echo "0")
+        
+        echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+        echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+        
+        {
+          echo "### 🎨 Puppet Lint"
+          echo ""
+          echo "| Severity | Count |"
+          echo "|----------|-------|"
+          echo "| Errors | $ERRORS |"
+          echo "| Warnings | $WARNINGS |"
+          
+          if [ -s lint-output.txt ]; then
+            echo ""
+            echo "<details><summary>📋 Lint Output</summary>"
+            echo ""
+            echo '```'
+            cat lint-output.txt | head -50
+            echo '```'
+            echo "</details>"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+        
+        if [ $ERRORS -gt 0 ] && [ "${{ inputs.fail-on-error }}" == "true" ]; then
+          exit 1
+        fi
+
+    - name: "🧪 Run Unit Tests (rspec-puppet)"
+      id: unit-tests
+      if: ${{ inputs.run-unit-tests == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      continue-on-error: ${{ inputs.fail-on-error != 'true' }}
+      env:
+        COVERAGE: ${{ inputs.coverage }}
+      run: |
+        echo "🧪 Running rspec-puppet unit tests..."
+        
+        # Determine which modules to test
+        if [ -n "${{ inputs.modules-to-test }}" ]; then
+          MODULES="${{ inputs.modules-to-test }}"
+        else
+          MODULES=$(find ./modules -maxdepth 1 -type d -name "*" | tail -n +2 | xargs -n1 basename | tr '\n' ',' | sed 's/,$//')
+        fi
+        
+        echo "Testing modules: $MODULES"
+        
+        TOTAL_PASSED=0
+        TOTAL_FAILED=0
+        TOTAL_PENDING=0
+        MODULE_RESULTS=""
+        
+        # Run tests for each module
+        IFS=',' read -ra MODULE_ARRAY <<< "$MODULES"
+        for module in "${MODULE_ARRAY[@]}"; do
+          MODULE_PATH="./modules/$module"
+          
+          if [ ! -d "$MODULE_PATH/spec" ]; then
+            echo "⏭️ Skipping $module (no spec directory)"
+            continue
+          fi
+          
+          echo "Testing: $module"
+          cd "$MODULE_PATH"
+          
+          # Create .fixtures.yml if not exists
+          if [ ! -f .fixtures.yml ]; then
+            cat > .fixtures.yml << 'EOF'
+        fixtures:
+          forge_modules:
+            stdlib:
+              repo: "puppetlabs/stdlib"
+              ref: "9.0.0"
+            apt:
+              repo: "puppetlabs/apt"
+              ref: "9.0.0"
+          symlinks:
+            "$(basename $module)": "#{source_dir}"
+        EOF
+          fi
+          
+          # Install fixtures
+          bundle install --quiet 2>/dev/null || gem install bundler && bundle install --quiet 2>/dev/null || true
+          
+          # Run rspec
+          set +e
+          if [ "${{ inputs.parallel-tests }}" == "true" ] && command -v parallel_rspec &> /dev/null; then
+            parallel_rspec spec/ --format json --out rspec-results.json --format documentation 2>&1 | tee rspec-output.log
+          else
+            rspec spec/ --format json --out rspec-results.json --format documentation 2>&1 | tee rspec-output.log
+          fi
+          RSPEC_EXIT=$?
+          set -e
+          
+          # Parse results
+          if [ -f rspec-results.json ]; then
+            PASSED=$(jq '.summary.example_count - .summary.failure_count - .summary.pending_count' rspec-results.json 2>/dev/null || echo "0")
+            FAILED=$(jq '.summary.failure_count // 0' rspec-results.json 2>/dev/null || echo "0")
+            PENDING=$(jq '.summary.pending_count // 0' rspec-results.json 2>/dev/null || echo "0")
+          else
+            PASSED=$(grep -oP '\d+(?= examples?)' rspec-output.log | head -1 || echo "0")
+            FAILED=$(grep -oP '\d+(?= failures?)' rspec-output.log | head -1 || echo "0")
+            PENDING=0
+          fi
+          
+          TOTAL_PASSED=$((TOTAL_PASSED + PASSED))
+          TOTAL_FAILED=$((TOTAL_FAILED + FAILED))
+          TOTAL_PENDING=$((TOTAL_PENDING + PENDING))
+          
+          if [ $FAILED -eq 0 ]; then
+            MODULE_RESULTS+="| $module | ✅ Passed | $PASSED | $FAILED |\n"
+          else
+            MODULE_RESULTS+="| $module | ❌ Failed | $PASSED | $FAILED |\n"
+          fi
+          
+          cd - > /dev/null
+        done
+        
+        echo "passed=$TOTAL_PASSED" >> $GITHUB_OUTPUT
+        echo "failed=$TOTAL_FAILED" >> $GITHUB_OUTPUT
+        echo "pending=$TOTAL_PENDING" >> $GITHUB_OUTPUT
+        
+        # Generate summary
+        {
+          echo "### 🧪 Unit Test Results"
+          echo ""
+          echo "| Module | Status | Passed | Failed |"
+          echo "|--------|--------|--------|--------|"
+          echo -e "$MODULE_RESULTS"
+          echo "| **Total** | - | **$TOTAL_PASSED** | **$TOTAL_FAILED** |"
+          
+          if [ $TOTAL_FAILED -gt 0 ]; then
+            echo ""
+            echo "❌ **$TOTAL_FAILED test(s) failed**"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+        
+        if [ $TOTAL_FAILED -gt 0 ] && [ "${{ inputs.fail-on-error }}" == "true" ]; then
+          exit 1
+        fi
+
+    - name: "📊 Generate Test Summary"
+      id: test-summary
+      if: always()
+      shell: bash
+      env:
+        SYNTAX_ERRORS: ${{ steps.syntax-check.outputs.errors || '0' }}
+        LINT_ERRORS: ${{ steps.lint-check.outputs.errors || '0' }}
+        LINT_WARNINGS: ${{ steps.lint-check.outputs.warnings || '0' }}
+        TESTS_PASSED: ${{ steps.unit-tests.outputs.passed || '0' }}
+        TESTS_FAILED: ${{ steps.unit-tests.outputs.failed || '0' }}
+        FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+      run: |
+        {
+          echo ""
+          echo "---"
+          echo "### 📊 Puppet Test Summary"
+          echo ""
+          echo "| Check | Result |"
+          echo "|-------|--------|"
+          
+          if [ "$SYNTAX_ERRORS" -eq 0 ]; then
+            echo "| Syntax Validation | ✅ Passed |"
+          else
+            echo "| Syntax Validation | ❌ $SYNTAX_ERRORS errors |"
+          fi
+          
+          if [ "$LINT_ERRORS" -eq 0 ]; then
+            echo "| Puppet Lint | ✅ Passed ($LINT_WARNINGS warnings) |"
+          else
+            echo "| Puppet Lint | ❌ $LINT_ERRORS errors |"
+          fi
+          
+          if [ "$TESTS_FAILED" -eq 0 ]; then
+            echo "| Unit Tests | ✅ $TESTS_PASSED passed |"
+          else
+            echo "| Unit Tests | ❌ $TESTS_FAILED failed |"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+        
+        # Determine overall status
+        TOTAL_ERRORS=$((SYNTAX_ERRORS + LINT_ERRORS + TESTS_FAILED))
+        
+        if [ $TOTAL_ERRORS -gt 0 ]; then
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "❌ Puppet tests failed"
+          if [ "$FAIL_ON_ERROR" == "true" ]; then
+            exit 1
+          fi
+        else
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ All Puppet tests passed"
+        fi
+

@@ -1,0 +1,336 @@
+name: "Puppet Catalog Compilation"
+description: "Test Puppet catalog compilation with dependency resolution and multi-node support"
+
+inputs:
+  puppet-dir:
+    description: "Path to Puppet code directory"
+    required: false
+    default: "./puppet"
+  ruby-version:
+    description: "Ruby version"
+    required: false
+    default: "3.2"
+  puppet-version:
+    description: "Puppet gem version"
+    required: false
+    default: "~> 8.0"
+  manifest:
+    description: "Main manifest file to compile"
+    required: false
+    default: "manifests/site.pp"
+  hiera-config:
+    description: "Path to hiera.yaml (relative to puppet-dir)"
+    required: false
+    default: "hiera.yaml"
+  modules-dir:
+    description: "Path to modules directory (relative to puppet-dir)"
+    required: false
+    default: "modules"
+  install-dependencies:
+    description: "Install module dependencies from metadata.json"
+    required: false
+    default: "true"
+  node-names:
+    description: "Comma-separated list of node names to compile catalogs for (empty = default)"
+    required: false
+    default: ""
+  facts-dir:
+    description: "Directory containing custom facts (YAML files)"
+    required: false
+    default: ""
+  strict-mode:
+    description: "Enable strict mode for compilation"
+    required: false
+    default: "false"
+  fail-on-error:
+    description: "Fail workflow on compilation errors"
+    required: false
+    default: "true"
+  fail-on-warning:
+    description: "Fail workflow on compilation warnings"
+    required: false
+    default: "false"
+
+outputs:
+  status:
+    description: "Compilation status (success/failure)"
+    value: ${{ steps.compile.outputs.status }}
+  nodes-tested:
+    description: "Number of nodes tested"
+    value: ${{ steps.compile.outputs.nodes-tested }}
+  nodes-passed:
+    description: "Number of nodes that compiled successfully"
+    value: ${{ steps.compile.outputs.nodes-passed }}
+  nodes-failed:
+    description: "Number of nodes that failed compilation"
+    value: ${{ steps.compile.outputs.nodes-failed }}
+  resources-count:
+    description: "Total resources in compiled catalog"
+    value: ${{ steps.compile.outputs.resources-count }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: "💎 Setup Ruby"
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+
+    - name: "📦 Install Puppet"
+      shell: bash
+      run: |
+        echo "📦 Installing Puppet..."
+        gem install puppet ${{ inputs.puppet-version }} --no-document
+        gem install hiera --no-document
+        gem install facter --no-document
+        gem install deep_merge --no-document
+        
+        echo "Puppet version: $(puppet --version)"
+        echo "Ruby version: $(ruby --version)"
+
+    - name: "📥 Install Module Dependencies"
+      if: ${{ inputs.install-dependencies == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      run: |
+        echo "📥 Installing module dependencies..."
+        
+        MODULES_DIR="${{ inputs.modules-dir }}"
+        INSTALLED=0
+        FAILED=0
+        
+        # Find all metadata.json files
+        while IFS= read -r -d '' metadata; do
+          MODULE_DIR=$(dirname "$metadata")
+          MODULE_NAME=$(jq -r '.name // "unknown"' "$metadata" 2>/dev/null)
+          
+          echo "Processing: $MODULE_NAME"
+          
+          # Extract and install dependencies
+          jq -r '.dependencies[]? | "\(.name)"' "$metadata" 2>/dev/null | while read -r dep; do
+            if [ -n "$dep" ] && [ "$dep" != "null" ]; then
+              echo "  Installing: $dep"
+              if puppet module install "$dep" --target-dir "./$MODULES_DIR" --force 2>/dev/null; then
+                ((INSTALLED++)) || true
+              else
+                echo "  ⚠️ Failed to install: $dep (may already exist)"
+              fi
+            fi
+          done
+        done < <(find "./$MODULES_DIR" -name "metadata.json" -print0 2>/dev/null)
+        
+        echo "✅ Dependency installation complete"
+        
+        # List installed modules
+        echo ""
+        echo "Installed modules:"
+        ls -la "./$MODULES_DIR" 2>/dev/null || echo "No modules directory"
+
+    - name: "🏗️ Compile Puppet Catalog"
+      id: compile
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      env:
+        STRICT_MODE: ${{ inputs.strict-mode }}
+        FAIL_ON_WARNING: ${{ inputs.fail-on-warning }}
+      run: |
+        echo "🏗️ Compiling Puppet catalog..."
+        
+        # Setup paths
+        MODULEPATH="$(pwd)/${{ inputs.modules-dir }}"
+        MANIFEST="${{ inputs.manifest }}"
+        HIERA_CONFIG="$(pwd)/${{ inputs.hiera-config }}"
+        
+        echo "Module path: $MODULEPATH"
+        echo "Manifest: $MANIFEST"
+        echo "Hiera config: $HIERA_CONFIG"
+        
+        # Validate paths
+        if [ ! -f "$MANIFEST" ]; then
+          echo "❌ Manifest not found: $MANIFEST"
+          echo "status=failure" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        # Build puppet apply arguments
+        PUPPET_ARGS="--noop"
+        PUPPET_ARGS="$PUPPET_ARGS --modulepath=$MODULEPATH"
+        
+        if [ -f "$HIERA_CONFIG" ]; then
+          PUPPET_ARGS="$PUPPET_ARGS --hiera_config=$HIERA_CONFIG"
+        fi
+        
+        if [ "$STRICT_MODE" == "true" ]; then
+          PUPPET_ARGS="$PUPPET_ARGS --strict=error"
+        fi
+        
+        # Get node names to test
+        NODE_NAMES="${{ inputs.node-names }}"
+        if [ -z "$NODE_NAMES" ]; then
+          NODE_NAMES="default"
+        fi
+        
+        NODES_TESTED=0
+        NODES_PASSED=0
+        NODES_FAILED=0
+        TOTAL_RESOURCES=0
+        NODE_RESULTS=""
+        
+        # Compile catalog for each node
+        IFS=',' read -ra NODES <<< "$NODE_NAMES"
+        for node in "${NODES[@]}"; do
+          node=$(echo "$node" | xargs)  # trim whitespace
+          ((NODES_TESTED++))
+          
+          echo ""
+          echo "=== Compiling catalog for node: $node ==="
+          
+          # Set up facts for this node
+          FACT_ARGS=""
+          if [ -n "${{ inputs.facts-dir }}" ] && [ -d "${{ inputs.facts-dir }}" ]; then
+            FACT_FILE="${{ inputs.facts-dir }}/${node}.yaml"
+            if [ -f "$FACT_FILE" ]; then
+              echo "Using facts from: $FACT_FILE"
+              # Export facts as environment variables
+              export FACTER_hostname="$node"
+            fi
+          fi
+          
+          # Compile catalog
+          set +e
+          OUTPUT=$(puppet apply $PUPPET_ARGS "$MANIFEST" 2>&1)
+          EXIT_CODE=$?
+          set -e
+          
+          echo "$OUTPUT"
+          
+          # Parse output for resource count
+          RESOURCES=$(echo "$OUTPUT" | grep -oP 'Applied catalog in \K[\d.]+|Would have' | head -1 || echo "0")
+          RESOURCE_COUNT=$(echo "$OUTPUT" | grep -oP '\d+(?= resources?)' | tail -1 || echo "0")
+          TOTAL_RESOURCES=$((TOTAL_RESOURCES + RESOURCE_COUNT))
+          
+          # Check for warnings
+          WARNINGS=$(echo "$OUTPUT" | grep -c "Warning:" || echo "0")
+          
+          if [ $EXIT_CODE -eq 0 ] || [ $EXIT_CODE -eq 2 ]; then
+            ((NODES_PASSED++))
+            if [ "$WARNINGS" -gt 0 ] && [ "$FAIL_ON_WARNING" == "true" ]; then
+              NODE_RESULTS+="| $node | ⚠️ Warnings | $RESOURCE_COUNT | $WARNINGS |\n"
+            else
+              NODE_RESULTS+="| $node | ✅ Passed | $RESOURCE_COUNT | $WARNINGS |\n"
+            fi
+            echo "✅ Node $node: Compilation successful ($RESOURCE_COUNT resources)"
+          else
+            ((NODES_FAILED++))
+            NODE_RESULTS+="| $node | ❌ Failed | - | - |\n"
+            echo "❌ Node $node: Compilation failed"
+            
+            # Save error output
+            echo "$OUTPUT" > "compile-error-${node}.log"
+          fi
+        done
+        
+        # Set outputs
+        echo "nodes-tested=$NODES_TESTED" >> $GITHUB_OUTPUT
+        echo "nodes-passed=$NODES_PASSED" >> $GITHUB_OUTPUT
+        echo "nodes-failed=$NODES_FAILED" >> $GITHUB_OUTPUT
+        echo "resources-count=$TOTAL_RESOURCES" >> $GITHUB_OUTPUT
+        
+        # Generate summary
+        {
+          echo "### 🏗️ Catalog Compilation Results"
+          echo ""
+          echo "| Node | Status | Resources | Warnings |"
+          echo "|------|--------|-----------|----------|"
+          echo -e "$NODE_RESULTS"
+          echo ""
+          echo "**Summary:** $NODES_PASSED/$NODES_TESTED nodes compiled successfully"
+          
+          if [ $NODES_FAILED -gt 0 ]; then
+            echo ""
+            echo "<details><summary>❌ Failed Node Details</summary>"
+            echo ""
+            for log in compile-error-*.log; do
+              if [ -f "$log" ]; then
+                NODE_NAME=$(echo "$log" | sed 's/compile-error-//;s/.log//')
+                echo "#### Node: $NODE_NAME"
+                echo '```'
+                tail -30 "$log"
+                echo '```'
+              fi
+            done
+            echo "</details>"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+        
+        # Determine overall status
+        if [ $NODES_FAILED -gt 0 ]; then
+          echo "status=failure" >> $GITHUB_OUTPUT
+          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+            exit 1
+          fi
+        else
+          echo "status=success" >> $GITHUB_OUTPUT
+        fi
+
+    - name: "📊 Analyze Catalog"
+      if: ${{ steps.compile.outputs.status == 'success' }}
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      run: |
+        echo "📊 Analyzing compiled catalog..."
+        
+        # Try to get catalog JSON for analysis
+        MODULEPATH="$(pwd)/${{ inputs.modules-dir }}"
+        MANIFEST="${{ inputs.manifest }}"
+        HIERA_CONFIG="$(pwd)/${{ inputs.hiera-config }}"
+        
+        set +e
+        puppet catalog compile default \
+          --modulepath="$MODULEPATH" \
+          --hiera_config="$HIERA_CONFIG" \
+          --render-as json 2>/dev/null > catalog.json
+        
+        if [ -f catalog.json ] && [ -s catalog.json ]; then
+          # Analyze resource types
+          echo ""
+          echo "Resource type breakdown:"
+          jq -r '.resources[]?.type' catalog.json 2>/dev/null | sort | uniq -c | sort -rn | head -10
+          
+          # Add to summary
+          {
+            echo ""
+            echo "#### 📊 Resource Analysis"
+            echo ""
+            echo "| Resource Type | Count |"
+            echo "|---------------|-------|"
+            jq -r '.resources[]?.type' catalog.json 2>/dev/null | sort | uniq -c | sort -rn | head -10 | \
+              awk '{print "| " $2 " | " $1 " |"}'
+          } >> $GITHUB_STEP_SUMMARY
+        fi
+        set -e
+
+    - name: "📊 Generate Final Summary"
+      if: always()
+      shell: bash
+      env:
+        STATUS: ${{ steps.compile.outputs.status || 'unknown' }}
+        NODES_TESTED: ${{ steps.compile.outputs.nodes-tested || '0' }}
+        NODES_PASSED: ${{ steps.compile.outputs.nodes-passed || '0' }}
+        NODES_FAILED: ${{ steps.compile.outputs.nodes-failed || '0' }}
+        RESOURCES: ${{ steps.compile.outputs.resources-count || '0' }}
+      run: |
+        {
+          echo ""
+          echo "---"
+          echo "### 📊 Compilation Summary"
+          echo ""
+          echo "| Metric | Value |"
+          echo "|--------|-------|"
+          echo "| Status | $STATUS |"
+          echo "| Nodes Tested | $NODES_TESTED |"
+          echo "| Nodes Passed | $NODES_PASSED |"
+          echo "| Nodes Failed | $NODES_FAILED |"
+          echo "| Total Resources | $RESOURCES |"
+        } >> $GITHUB_STEP_SUMMARY
+

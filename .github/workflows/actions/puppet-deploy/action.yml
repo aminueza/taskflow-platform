@@ -1,0 +1,368 @@
+name: "Puppet Deploy"
+description: "Deploy Puppet configuration to target servers via SSH with backup, rollback support, and dry-run mode"
+
+inputs:
+  puppet-dir:
+    description: "Local path to Puppet code directory"
+    required: false
+    default: "./puppet"
+  ssh-host:
+    description: "Target SSH host"
+    required: true
+  ssh-user:
+    description: "SSH username"
+    required: true
+  ssh-key:
+    description: "SSH private key"
+    required: true
+  ssh-port:
+    description: "SSH port"
+    required: false
+    default: "22"
+  remote-path:
+    description: "Remote path for Puppet code"
+    required: false
+    default: "/etc/puppetlabs/code/environments/production"
+  puppet-binary:
+    description: "Path to puppet binary on remote"
+    required: false
+    default: "/opt/puppetlabs/bin/puppet"
+  manifest:
+    description: "Main manifest file to apply"
+    required: false
+    default: "manifests/site.pp"
+  dry-run:
+    description: "Run puppet apply with --noop (dry-run)"
+    required: false
+    default: "false"
+  create-backup:
+    description: "Create backup before deployment"
+    required: false
+    default: "true"
+  backup-retention:
+    description: "Number of backups to retain"
+    required: false
+    default: "5"
+  apply-config:
+    description: "Apply Puppet configuration after sync"
+    required: false
+    default: "true"
+  show-diff:
+    description: "Show diff in puppet apply output"
+    required: false
+    default: "true"
+  verbose:
+    description: "Enable verbose output"
+    required: false
+    default: "true"
+  exclude-patterns:
+    description: "Comma-separated patterns to exclude from rsync"
+    required: false
+    default: ".git,*.swp,spec/,.fixtures.yml,.rspec"
+  pre-deploy-command:
+    description: "Command to run before deployment"
+    required: false
+    default: ""
+  post-deploy-command:
+    description: "Command to run after successful deployment"
+    required: false
+    default: ""
+  environment-name:
+    description: "Environment name for summary"
+    required: false
+    default: "production"
+
+outputs:
+  status:
+    description: "Deployment status (success/failure)"
+    value: ${{ steps.deploy.outputs.status }}
+  backup-path:
+    description: "Path to backup created"
+    value: ${{ steps.backup.outputs.backup-path }}
+  changes-detected:
+    description: "Whether changes were detected"
+    value: ${{ steps.deploy.outputs.changes-detected }}
+  puppet-exit-code:
+    description: "Puppet apply exit code"
+    value: ${{ steps.deploy.outputs.exit-code }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: "🔐 Configure SSH Connection"
+      id: ssh-setup
+      shell: bash
+      env:
+        SSH_KEY: ${{ inputs.ssh-key }}
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        SSH_PORT: ${{ inputs.ssh-port }}
+      run: |
+        echo "🔐 Configuring SSH connection..."
+        
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        
+        # Write SSH key
+        echo "$SSH_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        
+        # Configure SSH
+        cat >> ~/.ssh/config << EOF
+        Host puppet-target
+          HostName $SSH_HOST
+          User $SSH_USER
+          Port $SSH_PORT
+          IdentityFile ~/.ssh/deploy_key
+          StrictHostKeyChecking no
+          UserKnownHostsFile /dev/null
+          LogLevel ERROR
+          ConnectTimeout 30
+          ServerAliveInterval 60
+          ServerAliveCountMax 3
+        EOF
+        
+        chmod 600 ~/.ssh/config
+        
+        # Test connection
+        echo "Testing SSH connection..."
+        if ssh puppet-target "echo 'SSH connection successful'"; then
+          echo "✅ SSH connection established"
+          echo "connected=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ SSH connection failed"
+          echo "connected=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: "📦 Validate Local Puppet Code"
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      run: |
+        echo "📦 Validating local Puppet code..."
+        
+        # Check required files exist
+        if [ ! -f "${{ inputs.manifest }}" ]; then
+          echo "❌ Manifest not found: ${{ inputs.manifest }}"
+          exit 1
+        fi
+        
+        if [ ! -d "modules" ]; then
+          echo "⚠️ Warning: modules directory not found"
+        fi
+        
+        echo "✅ Local validation passed"
+
+    - name: "💾 Create Remote Backup"
+      id: backup
+      if: ${{ inputs.create-backup == 'true' }}
+      shell: bash
+      env:
+        REMOTE_PATH: ${{ inputs.remote-path }}
+        RETENTION: ${{ inputs.backup-retention }}
+      run: |
+        echo "💾 Creating backup on remote server..."
+        
+        BACKUP_PATH="${REMOTE_PATH}.backup.$(date +%Y%m%d_%H%M%S)"
+        
+        ssh puppet-target << ENDSSH
+          set -e
+          
+          if [ -d "$REMOTE_PATH" ]; then
+            echo "Creating backup: $BACKUP_PATH"
+            sudo cp -r "$REMOTE_PATH" "$BACKUP_PATH"
+            
+            # Cleanup old backups (keep last $RETENTION)
+            BACKUP_DIR=\$(dirname "$REMOTE_PATH")
+            BACKUP_PREFIX=\$(basename "$REMOTE_PATH").backup.
+            
+            cd "\$BACKUP_DIR"
+            ls -dt \${BACKUP_PREFIX}* 2>/dev/null | tail -n +$((RETENTION + 1)) | xargs -r sudo rm -rf
+            
+            echo "✅ Backup created successfully"
+          else
+            echo "⏭️ No existing deployment to backup"
+          fi
+        ENDSSH
+        
+        echo "backup-path=$BACKUP_PATH" >> $GITHUB_OUTPUT
+
+    - name: "🔧 Run Pre-Deploy Command"
+      if: ${{ inputs.pre-deploy-command != '' }}
+      shell: bash
+      run: |
+        echo "🔧 Running pre-deploy command..."
+        ssh puppet-target "${{ inputs.pre-deploy-command }}"
+
+    - name: "📤 Sync Puppet Code"
+      id: sync
+      shell: bash
+      working-directory: ${{ inputs.puppet-dir }}
+      env:
+        REMOTE_PATH: ${{ inputs.remote-path }}
+        EXCLUDE_PATTERNS: ${{ inputs.exclude-patterns }}
+      run: |
+        echo "📤 Syncing Puppet code to remote server..."
+        
+        # Build exclude arguments
+        EXCLUDE_ARGS=""
+        IFS=',' read -ra PATTERNS <<< "$EXCLUDE_PATTERNS"
+        for pattern in "${PATTERNS[@]}"; do
+          EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude='$pattern'"
+        done
+        
+        # Create temp directory on remote
+        ssh puppet-target "sudo mkdir -p /tmp/puppet-deploy && sudo chown \$(whoami) /tmp/puppet-deploy"
+        
+        # Sync code
+        eval rsync -avz --delete $EXCLUDE_ARGS \
+          -e "ssh -o StrictHostKeyChecking=no" \
+          ./ puppet-target:/tmp/puppet-deploy/
+        
+        # Move to final location
+        ssh puppet-target << ENDSSH
+          set -e
+          sudo mkdir -p "$REMOTE_PATH"
+          sudo rsync -avz --delete /tmp/puppet-deploy/ "$REMOTE_PATH/"
+          sudo chown -R root:root "$REMOTE_PATH"
+          rm -rf /tmp/puppet-deploy
+        ENDSSH
+        
+        echo "✅ Code sync complete"
+        echo "synced=true" >> $GITHUB_OUTPUT
+
+    - name: "🚀 Apply Puppet Configuration"
+      id: deploy
+      if: ${{ inputs.apply-config == 'true' }}
+      shell: bash
+      env:
+        REMOTE_PATH: ${{ inputs.remote-path }}
+        PUPPET_BIN: ${{ inputs.puppet-binary }}
+        MANIFEST: ${{ inputs.manifest }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        SHOW_DIFF: ${{ inputs.show-diff }}
+        VERBOSE: ${{ inputs.verbose }}
+      run: |
+        echo "🚀 Applying Puppet configuration..."
+        
+        # Build puppet apply arguments
+        PUPPET_ARGS=""
+        
+        if [ "$DRY_RUN" == "true" ]; then
+          PUPPET_ARGS="$PUPPET_ARGS --noop"
+          echo "⚠️ Running in dry-run mode (--noop)"
+        fi
+        
+        if [ "$SHOW_DIFF" == "true" ]; then
+          PUPPET_ARGS="$PUPPET_ARGS --show_diff"
+        fi
+        
+        if [ "$VERBOSE" == "true" ]; then
+          PUPPET_ARGS="$PUPPET_ARGS --verbose"
+        fi
+        
+        # Run puppet apply
+        set +e
+        ssh puppet-target << ENDSSH | tee puppet-apply.log
+          set -e
+          
+          echo "Applying: $REMOTE_PATH/$MANIFEST"
+          echo "Module path: $REMOTE_PATH/modules"
+          
+          sudo $PUPPET_BIN apply \
+            "$REMOTE_PATH/$MANIFEST" \
+            --modulepath="$REMOTE_PATH/modules" \
+            --hiera_config="$REMOTE_PATH/hiera.yaml" \
+            --detailed-exitcodes \
+            $PUPPET_ARGS 2>&1
+          
+          EXIT_CODE=\$?
+          echo "PUPPET_EXIT_CODE=\$EXIT_CODE"
+          exit \$EXIT_CODE
+        ENDSSH
+        PUPPET_EXIT=$?
+        set -e
+        
+        # Parse exit code
+        # 0 = no changes, 2 = changes applied, others = error
+        echo "exit-code=$PUPPET_EXIT" >> $GITHUB_OUTPUT
+        
+        if [ $PUPPET_EXIT -eq 0 ]; then
+          echo "✅ Puppet apply completed (no changes)"
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "changes-detected=false" >> $GITHUB_OUTPUT
+        elif [ $PUPPET_EXIT -eq 2 ]; then
+          echo "✅ Puppet apply completed (changes applied)"
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "changes-detected=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Puppet apply failed with exit code: $PUPPET_EXIT"
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "changes-detected=false" >> $GITHUB_OUTPUT
+          
+          # Show error details
+          echo ""
+          echo "=== Last 50 lines of output ==="
+          tail -50 puppet-apply.log
+          
+          exit 1
+        fi
+
+    - name: "🔧 Run Post-Deploy Command"
+      if: ${{ inputs.post-deploy-command != '' && steps.deploy.outputs.status == 'success' }}
+      shell: bash
+      run: |
+        echo "🔧 Running post-deploy command..."
+        ssh puppet-target "${{ inputs.post-deploy-command }}"
+
+    - name: "📊 Generate Deployment Summary"
+      if: always()
+      shell: bash
+      env:
+        ENV_NAME: ${{ inputs.environment-name }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        STATUS: ${{ steps.deploy.outputs.status || 'skipped' }}
+        CHANGES: ${{ steps.deploy.outputs.changes-detected || 'unknown' }}
+        BACKUP_PATH: ${{ steps.backup.outputs.backup-path || 'none' }}
+        EXIT_CODE: ${{ steps.deploy.outputs.exit-code || 'N/A' }}
+      run: |
+        {
+          echo "### 🚀 Puppet Deployment Summary"
+          echo ""
+          echo "| Property | Value |"
+          echo "|----------|-------|"
+          echo "| Environment | $ENV_NAME |"
+          echo "| Target Host | ${{ inputs.ssh-host }} |"
+          echo "| Remote Path | ${{ inputs.remote-path }} |"
+          echo "| Dry Run | $DRY_RUN |"
+          echo "| Status | $STATUS |"
+          echo "| Changes Detected | $CHANGES |"
+          echo "| Puppet Exit Code | $EXIT_CODE |"
+          echo "| Backup Path | $BACKUP_PATH |"
+          echo ""
+          
+          if [ "$STATUS" == "success" ]; then
+            if [ "$DRY_RUN" == "true" ]; then
+              echo "✅ **Dry-run completed successfully**"
+              echo ""
+              echo "> No changes were applied. Run without dry-run to apply changes."
+            else
+              echo "✅ **Deployment completed successfully**"
+            fi
+          elif [ "$STATUS" == "failure" ]; then
+            echo "❌ **Deployment failed**"
+            echo ""
+            echo "Check the logs above for details. A backup was created at:"
+            echo "\`$BACKUP_PATH\`"
+          else
+            echo "⏭️ **Deployment was skipped**"
+          fi
+        } >> $GITHUB_STEP_SUMMARY
+
+    - name: "🧹 Cleanup SSH"
+      if: always()
+      shell: bash
+      run: |
+        rm -f ~/.ssh/deploy_key
+        sed -i '/puppet-target/,/ServerAliveCountMax/d' ~/.ssh/config 2>/dev/null || true
+
