@@ -284,20 +284,20 @@ runs:
       run: |
         echo "📤 Syncing Puppet code to remote server..."
         
-        # Build exclude arguments
-        EXCLUDE_ARGS=""
+        # Build exclude arguments as array
+        EXCLUDE_ARGS=()
         IFS=',' read -ra PATTERNS <<< "$EXCLUDE_PATTERNS"
         for pattern in "${PATTERNS[@]}"; do
-          EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude='$pattern'"
+          pattern=$(echo "$pattern" | xargs)  # trim whitespace
+          EXCLUDE_ARGS+=("--exclude=$pattern")
         done
         
         # Create temp directory on remote
         ssh puppet-target "sudo mkdir -p /tmp/puppet-deploy && sudo chown \$(whoami) /tmp/puppet-deploy"
         
-        # Sync code
-        eval rsync -avz --delete $EXCLUDE_ARGS \
-          -e "ssh -o StrictHostKeyChecking=no" \
-          ./ puppet-target:/tmp/puppet-deploy/
+        # Sync code using RSYNC_RSH for SSH options
+        export RSYNC_RSH="ssh -o StrictHostKeyChecking=no"
+        rsync -avz --delete "${EXCLUDE_ARGS[@]}" ./ puppet-target:/tmp/puppet-deploy/
         
         # Move to final location
         ssh puppet-target << ENDSSH
