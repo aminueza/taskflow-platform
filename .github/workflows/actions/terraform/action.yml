@@ -53,14 +53,34 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: "📦 Install Dependencies"
+    - name: "📦 Install Dependencies (Self-hosted Runner)"
       shell: bash
       run: |
-        # Install unzip if not present (needed for self-hosted runners)
-        if ! command -v unzip &> /dev/null; then
-          echo "Installing unzip..."
-          sudo apt-get update -qq && sudo apt-get install -y -qq unzip
+        echo "📦 Checking and installing required tools..."
+        
+        PACKAGES_TO_INSTALL=""
+        
+        # Check for required tools
+        command -v unzip &> /dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL unzip"
+        command -v curl &> /dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL curl"
+        command -v jq &> /dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL jq"
+        command -v gpg &> /dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL gnupg"
+        
+        # Install missing packages
+        if [ -n "$PACKAGES_TO_INSTALL" ]; then
+          echo "Installing: $PACKAGES_TO_INSTALL"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq $PACKAGES_TO_INSTALL
         fi
+        
+        # Install Azure CLI if not present
+        if ! command -v az &> /dev/null; then
+          echo "Installing Azure CLI..."
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        fi
+        
+        echo "✅ All dependencies installed"
+        echo "Azure CLI version: $(az version --query '"azure-cli"' -o tsv 2>/dev/null || echo 'installed')"
 
     - name: "🔧 Setup Terraform"
       uses: hashicorp/setup-terraform@v3
