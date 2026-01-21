@@ -28,7 +28,8 @@ RSpec.describe AuditLog, type: :model do
   end
 
   describe 'associations' do
-    it { is_expected.to belong_to(:user) }
+    it { is_expected.to belong_to(:user).optional }
+    it { is_expected.to belong_to(:resource).optional }
 
     it 'is associated with a user' do
       user = create(:user)
