@@ -4,7 +4,7 @@ require 'rails_helper'
 
 RSpec.describe ResponseHelper, type: :controller do
   controller(ActionController::API) do
-    include ResponseHelper
+    include ResponseHelper # rubocop:disable RSpec/DescribedClass
 
     def test_render_success
       render_success({ name: 'Test' }, message: 'Success message')
