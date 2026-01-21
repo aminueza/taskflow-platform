@@ -6,7 +6,7 @@ class HealthController < ApplicationController
     redis_status = check_redis
     sidekiq_status = check_sidekiq
 
-    status = db_status && redis_status && sidekiq_status ? 'healthy' : 'unhealthy'
+    status = db_status && redis_status && sidekiq_status.positive? ? 'healthy' : 'unhealthy'
 
     render json: {
       status: status,
