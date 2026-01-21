@@ -52,7 +52,7 @@ variable "subnet_configs" {
   default = {
     bastion = {
       address_prefix                    = "10.0.1.0/24"
-      service_endpoints                 = []
+      service_endpoints                 = ["Microsoft.KeyVault"]
       private_endpoint_network_policies = "Disabled"
     }
     AzureBastionSubnet = {
@@ -63,7 +63,6 @@ variable "subnet_configs" {
     apps = {
       address_prefix                    = "10.0.2.0/23"
       service_endpoints                 = ["Microsoft.Sql", "Microsoft.KeyVault"]
-      delegation                        = "Microsoft.App/environments"
       private_endpoint_network_policies = "Disabled"
     }
     database = {
@@ -83,6 +82,12 @@ variable "bastion_admin_username" {
   description = "Bastion VM admin username"
   type        = string
   default     = "azureuser"
+}
+
+variable "ip_rules" {
+  description = "IP rules for Key Vault network ACL"
+  type        = list(string)
+  default     = []
 }
 
 ##########################################################

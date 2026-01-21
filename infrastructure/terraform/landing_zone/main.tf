@@ -51,6 +51,7 @@ module "key_vault" {
   global_config       = local.common_tags
   app_subnet_id       = module.network.subnet_ids["apps"]
   bastion_subnet_id   = module.network.subnet_ids["bastion"]
+  ip_rules            = var.ip_rules
 }
 
 ##########################################################

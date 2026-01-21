@@ -1,24 +1,49 @@
 name: "Puppet Deploy"
-description: "Deploy Puppet configuration to target servers via SSH with backup, rollback support, and dry-run mode"
+description: "Deploy Puppet configuration to target servers via SSH (direct or Azure Bastion) with backup, rollback support, and dry-run mode"
 
 inputs:
   puppet-dir:
     description: "Local path to Puppet code directory"
     required: false
     default: "./puppet"
-  ssh-host:
-    description: "Target SSH host"
-    required: true
   ssh-user:
     description: "SSH username"
     required: true
   ssh-key:
     description: "SSH private key"
     required: true
+  
+  # Direct SSH options (use when azure-bastion-enabled is false)
+  ssh-host:
+    description: "Target SSH host (not needed when using Azure Bastion)"
+    required: false
+    default: ""
   ssh-port:
-    description: "SSH port"
+    description: "SSH port (not needed when using Azure Bastion)"
     required: false
     default: "22"
+  
+  # Azure Bastion options
+  azure-bastion-enabled:
+    description: "Use Azure Bastion tunnel instead of direct SSH"
+    required: false
+    default: "false"
+  azure-bastion-name:
+    description: "Azure Bastion resource name"
+    required: false
+    default: ""
+  azure-resource-group:
+    description: "Azure resource group containing the Bastion"
+    required: false
+    default: ""
+  azure-vm-resource-id:
+    description: "Full Azure VM resource ID to connect to"
+    required: false
+    default: ""
+  azure-tunnel-port:
+    description: "Local port for Azure Bastion tunnel"
+    required: false
+    default: "2222"
   remote-path:
     description: "Remote path for Puppet code"
     required: false
@@ -89,6 +114,48 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: "🔗 Create Azure Bastion Tunnel"
+      id: bastion-tunnel
+      if: ${{ inputs.azure-bastion-enabled == 'true' }}
+      shell: bash
+      env:
+        BASTION_NAME: ${{ inputs.azure-bastion-name }}
+        RESOURCE_GROUP: ${{ inputs.azure-resource-group }}
+        VM_ID: ${{ inputs.azure-vm-resource-id }}
+        TUNNEL_PORT: ${{ inputs.azure-tunnel-port }}
+      run: |
+        echo "🔗 Creating Azure Bastion tunnel..."
+        
+        # Validate required inputs
+        if [ -z "$BASTION_NAME" ] || [ -z "$RESOURCE_GROUP" ] || [ -z "$VM_ID" ]; then
+          echo "❌ Azure Bastion configuration incomplete"
+          echo "Required: azure-bastion-name, azure-resource-group, azure-vm-resource-id"
+          exit 1
+        fi
+        
+        # Start tunnel in background
+        az network bastion tunnel \
+          --name "$BASTION_NAME" \
+          --resource-group "$RESOURCE_GROUP" \
+          --target-resource-id "$VM_ID" \
+          --resource-port 22 \
+          --port "$TUNNEL_PORT" &
+        
+        TUNNEL_PID=$!
+        echo "tunnel_pid=$TUNNEL_PID" >> $GITHUB_OUTPUT
+        
+        # Wait for tunnel to establish
+        echo "Waiting for tunnel to establish..."
+        sleep 15
+        
+        # Verify tunnel is running
+        if ! kill -0 $TUNNEL_PID 2>/dev/null; then
+          echo "❌ Azure Bastion tunnel failed to start"
+          exit 1
+        fi
+        
+        echo "✅ Azure Bastion tunnel established on localhost:$TUNNEL_PORT"
+
     - name: "🔐 Configure SSH Connection"
       id: ssh-setup
       shell: bash
@@ -97,6 +164,8 @@ runs:
         SSH_HOST: ${{ inputs.ssh-host }}
         SSH_USER: ${{ inputs.ssh-user }}
         SSH_PORT: ${{ inputs.ssh-port }}
+        USE_BASTION: ${{ inputs.azure-bastion-enabled }}
+        TUNNEL_PORT: ${{ inputs.azure-tunnel-port }}
       run: |
         echo "🔐 Configuring SSH connection..."
         
@@ -107,12 +176,23 @@ runs:
         echo "$SSH_KEY" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
         
+        # Determine connection target
+        if [ "$USE_BASTION" == "true" ]; then
+          TARGET_HOST="localhost"
+          TARGET_PORT="$TUNNEL_PORT"
+          echo "Using Azure Bastion tunnel: localhost:$TUNNEL_PORT"
+        else
+          TARGET_HOST="$SSH_HOST"
+          TARGET_PORT="$SSH_PORT"
+          echo "Using direct SSH: $SSH_HOST:$SSH_PORT"
+        fi
+        
         # Configure SSH
         cat >> ~/.ssh/config << EOF
         Host puppet-target
-          HostName $SSH_HOST
+          HostName $TARGET_HOST
           User $SSH_USER
-          Port $SSH_PORT
+          Port $TARGET_PORT
           IdentityFile ~/.ssh/deploy_key
           StrictHostKeyChecking no
           UserKnownHostsFile /dev/null
@@ -359,10 +439,19 @@ runs:
           fi
         } >> $GITHUB_STEP_SUMMARY
 
-    - name: "🧹 Cleanup SSH"
+    - name: "🧹 Cleanup SSH and Tunnel"
       if: always()
       shell: bash
+      env:
+        TUNNEL_PID: ${{ steps.bastion-tunnel.outputs.tunnel_pid }}
       run: |
+        # Cleanup SSH key and config
         rm -f ~/.ssh/deploy_key
         sed -i '/puppet-target/,/ServerAliveCountMax/d' ~/.ssh/config 2>/dev/null || true
+        
+        # Cleanup Azure Bastion tunnel if it was created
+        if [ -n "$TUNNEL_PID" ]; then
+          echo "🧹 Stopping Azure Bastion tunnel (PID: $TUNNEL_PID)..."
+          kill "$TUNNEL_PID" 2>/dev/null || true
+        fi
 

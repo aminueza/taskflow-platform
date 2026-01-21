@@ -21,8 +21,8 @@ bastion_users::users:
 # pgAdmin configuration
 pgadmin::servers:
   production:
-    host: 'psql-webapp-dev-weu.postgres.database.azure.com'
+    host: 'psql-taskflow-global-frc.postgres.database.azure.com'
     port: 5432
-    username: 'psqladmin'
+    username: 'adminc6maxyi0q6nx'
     database: 'webapp_production'
     ssl_mode: 'require'

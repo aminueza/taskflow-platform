@@ -22,7 +22,7 @@ resource "azurerm_linux_virtual_machine" "bastion" {
   name                = module.vm_label.id
   location            = var.global_config.location
   resource_group_name = var.resource_group_name
-  size                = "Standard_B2s"
+  size                = var.vm_size
   admin_username      = var.admin_username
 
   network_interface_ids = [

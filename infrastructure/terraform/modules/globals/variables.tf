@@ -3,8 +3,8 @@ variable "location" {
   type        = string
 
   validation {
-    condition     = contains(["westeurope", "eastus", "eastasia", "australiaeast", "swedencentral", "global"], var.location)
-    error_message = "The environment must be one of the following: westeurope, eastus, eastasia, australiaeast, swedencentral, global."
+    condition     = contains(["westeurope", "eastus", "eastasia", "australiaeast", "swedencentral", "francecentral", "global"], var.location)
+    error_message = "The environment must be one of the following: westeurope, eastus, eastasia, australiaeast, swedencentral, francecentral, global."
   }
 }
 

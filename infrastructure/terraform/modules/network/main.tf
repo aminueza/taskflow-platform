@@ -30,9 +30,6 @@ resource "azurerm_subnet" "subnets" {
       name = "delegation"
       service_delegation {
         name = each.value.delegation
-        actions = [
-          "Microsoft.Network/virtualNetworks/subnets/action",
-        ]
       }
     }
   }

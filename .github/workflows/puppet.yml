@@ -4,13 +4,13 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'puppet/**'
+      - 'infrastructure/puppet/**'
       - '.github/workflows/puppet.yml'
       - '.github/workflows/actions/puppet-*/**'
   pull_request:
     branches: [main]
     paths:
-      - 'puppet/**'
+      - 'infrastructure/puppet/**'
       - '.github/workflows/puppet.yml'
       - '.github/workflows/actions/puppet-*/**'
   workflow_dispatch:
@@ -30,9 +30,10 @@ permissions:
   contents: read
   security-events: write
   pull-requests: write
+  id-token: write
 
 env:
-  PUPPET_DIR: "./puppet"
+  PUPPET_DIR: "infrastructure/puppet"
 
 jobs:
   security:
@@ -114,19 +115,30 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
     environment:
       name: bastion
-      url: https://bastion.example.com
 
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
+      - name: 🔐 Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: 🚀 Deploy Puppet Configuration
         uses: ./.github/workflows/actions/puppet-deploy
         with:
-          puppet-dir: ${{ env.PUPPET_DIR }}
-          ssh-host: ${{ secrets.BASTION_HOST }}
+          puppet-dir: 'infrastructure/puppet'
           ssh-user: ${{ secrets.BASTION_USER }}
           ssh-key: ${{ secrets.BASTION_SSH_KEY }}
+          # Azure Bastion configuration
+          azure-bastion-enabled: "true"
+          azure-bastion-name: ${{ secrets.AZURE_BASTION_NAME }}
+          azure-resource-group: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          azure-vm-resource-id: ${{ secrets.AZURE_BASTION_VM_ID }}
+          # Puppet configuration
           remote-path: "/etc/puppetlabs/code/environments/production"
           manifest: "manifests/site.pp"
           dry-run: ${{ github.event.inputs.dry-run || 'false' }}

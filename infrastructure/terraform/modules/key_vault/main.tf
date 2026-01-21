@@ -20,6 +20,7 @@ resource "azurerm_key_vault" "main" {
     default_action             = "Deny"
     bypass                     = "AzureServices"
     virtual_network_subnet_ids = [var.app_subnet_id, var.bastion_subnet_id]
+    ip_rules                   = var.ip_rules
   }
 
   tags = var.global_config.all_tags

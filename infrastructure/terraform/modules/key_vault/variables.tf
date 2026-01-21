@@ -35,3 +35,8 @@ variable "bastion_subnet_id" {
   description = "Bastion subnet ID for Key Vault network ACL"
   type        = string
 }
+
+variable "ip_rules" {
+  description = "IP rules for Key Vault network ACL"
+  type        = list(string)
+}

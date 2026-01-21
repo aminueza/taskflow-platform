@@ -5,6 +5,7 @@ locals {
     "eastasia"      = "eas"
     "australiaeast" = "eau"
     "swedencentral" = "sdc"
+    "francecentral" = "frc"
     "global"        = "global"
   }
 

@@ -40,3 +40,9 @@ variable "admin_ssh_key" {
   type        = string
   sensitive   = true
 }
+
+variable "vm_size" {
+  description = "VM size for the bastion host"
+  type        = string
+  default     = "Standard_B2as_v2"
+}
