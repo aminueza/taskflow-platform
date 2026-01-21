@@ -174,22 +174,30 @@ runs:
         echo ""
         
         # Build puppet apply arguments
+        echo "Building Puppet arguments..."
         PUPPET_ARGS="--noop"
         PUPPET_ARGS="$PUPPET_ARGS --modulepath=$MODULEPATH"
         
         if [ -f "$HIERA_CONFIG" ]; then
           PUPPET_ARGS="$PUPPET_ARGS --hiera_config=$HIERA_CONFIG"
+          echo "Using hiera config: $HIERA_CONFIG"
+        else
+          echo "Warning: Hiera config not found at $HIERA_CONFIG"
         fi
         
         if [ "$STRICT_MODE" == "true" ]; then
           PUPPET_ARGS="$PUPPET_ARGS --strict=error"
         fi
         
+        echo "Puppet arguments: $PUPPET_ARGS"
+        echo ""
+        
         # Get node names to test
         NODE_NAMES="${{ inputs.node-names }}"
         if [ -z "$NODE_NAMES" ]; then
           NODE_NAMES="default"
         fi
+        echo "Node names to test: $NODE_NAMES"
         
         NODES_TESTED=0
         NODES_PASSED=0
@@ -201,7 +209,7 @@ runs:
         IFS=',' read -ra NODES <<< "$NODE_NAMES"
         for node in "${NODES[@]}"; do
           node=$(echo "$node" | xargs)  # trim whitespace
-          ((NODES_TESTED++))
+          NODES_TESTED=$((NODES_TESTED + 1))
           
           echo ""
           echo "=== Compiling catalog for node: $node ==="
@@ -238,7 +246,7 @@ runs:
           WARNINGS=$(echo "$OUTPUT" | grep -c "Warning:" || echo "0")
           
           if [ $EXIT_CODE -eq 0 ] || [ $EXIT_CODE -eq 2 ]; then
-            ((NODES_PASSED++))
+            NODES_PASSED=$((NODES_PASSED + 1))
             if [ "$WARNINGS" -gt 0 ] && [ "$FAIL_ON_WARNING" == "true" ]; then
               NODE_RESULTS+="| $node | ⚠️ Warnings | $RESOURCE_COUNT | $WARNINGS |\n"
             else
@@ -246,7 +254,7 @@ runs:
             fi
             echo "✅ Node $node: Compilation successful ($RESOURCE_COUNT resources)"
           else
-            ((NODES_FAILED++))
+            NODES_FAILED=$((NODES_FAILED + 1))
             NODE_RESULTS+="| $node | ❌ Failed | - | - |\n"
             echo "❌ Node $node: Compilation failed"
             
