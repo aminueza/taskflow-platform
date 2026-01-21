@@ -260,9 +260,9 @@ curl --proxy http://localhost:8888 http://internal-service
 
 This setup gives you full access to private Azure resources from your local machine:
 
-✅ Access internal container apps
-✅ Connect to private PostgreSQL
-✅ Query Key Vault (if needed)
-✅ Debug private services
-✅ No VPN required
-✅ Complies with security requirements (no public IPs on VMs)
+- ✅ Access internal container apps
+- ✅ Connect to private PostgreSQL
+- ✅ Query Key Vault (if needed)
+- ✅ Debug private services
+- ✅ No VPN required
+- ✅ Complies with security requirements (no public IPs on VMs)

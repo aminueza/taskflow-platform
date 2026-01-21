@@ -28,6 +28,14 @@ Azure Resource Group
 
 Full diagram: [docs/INFRASTRUCTURE_DIAGRAM.md](docs/INFRASTRUCTURE_DIAGRAM.md)
 
+## Observability
+
+Grafana dashboards with Prometheus metrics and OpenTelemetry tracing.
+
+![Rails Dashboard](docs/images/grafana_rails.png)
+
+![SLO/SLI Dashboard](docs/images/grafana_slo_sli.png)
+
 ## Quick Start
 
 ```bash
