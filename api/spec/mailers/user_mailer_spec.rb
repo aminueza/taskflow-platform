@@ -16,7 +16,7 @@ RSpec.describe UserMailer, type: :mailer do
     end
 
     it 'assigns @user' do
-      expect(mail.body.encoded).to match(user.email)
+      expect(mail.body.encoded).to match(user.username)
     end
   end
 
@@ -33,7 +33,7 @@ RSpec.describe UserMailer, type: :mailer do
     end
 
     it 'assigns @user' do
-      expect(mail.body.encoded).to match(user.email)
+      expect(mail.body.encoded).to match(user.username)
     end
   end
 end
