@@ -4,13 +4,13 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'infrastructure/puppet/**'
+      - 'puppet/**'
       - '.github/workflows/puppet.yml'
       - '.github/workflows/actions/puppet-*/**'
   pull_request:
     branches: [main]
     paths:
-      - 'infrastructure/puppet/**'
+      - 'puppet/**'
       - '.github/workflows/puppet.yml'
       - '.github/workflows/actions/puppet-*/**'
   workflow_dispatch:
@@ -33,7 +33,7 @@ permissions:
   id-token: write
 
 env:
-  PUPPET_DIR: "infrastructure/puppet"
+  PUPPET_DIR: "puppet"
 
 jobs:
   security:
@@ -130,7 +130,7 @@ jobs:
       - name: 🚀 Deploy Puppet Configuration
         uses: ./.github/workflows/actions/puppet-deploy
         with:
-          puppet-dir: 'infrastructure/puppet'
+          puppet-dir: ${{ env.PUPPET_DIR }}
           ssh-user: ${{ secrets.BASTION_USER }}
           ssh-key: ${{ secrets.BASTION_SSH_KEY }}
           # Azure Bastion configuration

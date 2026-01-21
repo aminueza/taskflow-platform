@@ -77,13 +77,14 @@ runs:
 
     - name: "📦 Install Puppet & Testing Tools"
       shell: bash
+      env:
+        PUPPET_VERSION: ${{ inputs.puppet-version }}
       run: |
         echo "📦 Installing Puppet testing tools..."
         
         # Install Puppet and core dependencies
-        gem install puppet ${{ inputs.puppet-version }} --no-document
+        gem install puppet -v "$PUPPET_VERSION" --no-document
         gem install facter --no-document
-        gem install hiera --no-document
         
         # Install testing tools
         gem install rspec-puppet --no-document
