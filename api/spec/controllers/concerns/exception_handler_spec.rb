@@ -5,7 +5,7 @@ require 'rails_helper'
 RSpec.describe ExceptionHandler, type: :controller do
   controller(ActionController::API) do
     include ResponseHelper
-    include described_class
+    include ExceptionHandler
 
     def test_standard_error
       raise StandardError, 'Test error'
