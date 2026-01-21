@@ -214,7 +214,12 @@ runs:
       working-directory: ${{ inputs.frontend-working-directory }}
       run: |
         if [ "${{ inputs.package-manager }}" == "npm" ]; then
-          npm ci
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            echo "⚠️ package-lock.json not found, using npm install instead"
+            npm install
+          fi
         elif [ "${{ inputs.package-manager }}" == "yarn" ]; then
           yarn install --frozen-lockfile
         elif [ "${{ inputs.package-manager }}" == "pnpm" ]; then
