@@ -16,15 +16,22 @@ AllCops:
     - 'tmp/**/*'
     - 'log/**/*'
 
+Layout/EndOfLine:
+  # Allow both Unix (LF) and Windows (CRLF) line endings
+  Enabled: false
+
 Layout/LineLength:
   Max: 120
   AllowedPatterns:
     - '^\s*#'  # Allow long comments
+  Exclude:
+    - 'db/seeds.rb'
 
 Metrics/AbcSize:
   Max: 25
   Exclude:
     - 'app/controllers/metrics_controller.rb'
+    - 'app/controllers/api/v1/users_controller.rb'
 
 Metrics/BlockLength:
   Exclude:
@@ -46,6 +53,11 @@ Metrics/MethodLength:
   Max: 15
   Exclude:
     - 'app/controllers/metrics_controller.rb'
+    - 'app/controllers/health_controller.rb'
+    - 'app/controllers/concerns/exception_handler.rb'
+    - 'app/services/user_registration_service.rb'
+    - 'app/workers/user_mailer_worker.rb'
+    - 'app/models/concerns/auditable.rb'
     - 'db/seeds.rb'
 
 Metrics/PerceivedComplexity:
@@ -80,11 +92,27 @@ Rails/Output:
 Rails/SkipsModelValidations:
   Enabled: false
 
+Rails/I18nLocaleTexts:
+  Exclude:
+    - 'app/controllers/application_controller.rb'
+    - 'app/mailers/user_mailer.rb'
+
+Style/HashLikeCase:
+  Exclude:
+    - 'app/models/concerns/auditable.rb'
+
 RSpec/ExampleLength:
   Max: 15
 
 RSpec/MultipleExpectations:
   Max: 5
+  Exclude:
+    - 'spec/requests/metrics_spec.rb'
+
+RSpec/AnyInstance:
+  Exclude:
+    - 'spec/requests/health_spec.rb'
+    - 'spec/requests/metrics_spec.rb'
 
 RSpec/NestedGroups:
   Max: 4

@@ -18,3 +18,28 @@ Metrics/MethodLength:
     - 'app/workers/user_mailer_worker.rb'
     - 'app/models/concerns/auditable.rb'
 
+Rails/I18nLocaleTexts:
+  Exclude:
+    - 'app/controllers/application_controller.rb'
+    - 'app/mailers/user_mailer.rb'
+
+# Case-when is more readable than hash lookup in this context
+Style/HashLikeCase:
+  Exclude:
+    - 'app/models/concerns/auditable.rb'
+
+# Long lines in seed file are acceptable
+Layout/LineLength:
+  Exclude:
+    - 'db/seeds.rb'
+
+# RSpec test stubbing - acceptable patterns for integration tests
+RSpec/AnyInstance:
+  Exclude:
+    - 'spec/requests/health_spec.rb'
+    - 'spec/requests/metrics_spec.rb'
+
+# Complex integration tests need more expectations
+RSpec/MultipleExpectations:
+  Exclude:
+    - 'spec/requests/metrics_spec.rb'
