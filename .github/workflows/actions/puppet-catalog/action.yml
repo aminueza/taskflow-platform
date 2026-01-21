@@ -78,11 +78,18 @@ runs:
 
     - name: "📦 Install Puppet"
       shell: bash
+      env:
+        PUPPET_VERSION: ${{ inputs.puppet-version }}
       run: |
         echo "📦 Installing Puppet..."
-        gem install puppet ${{ inputs.puppet-version }} --no-document
-        gem install hiera --no-document
-        gem install facter --no-document
+        
+        # Add gem bin to PATH
+        GEM_BIN=$(gem environment gemdir)/bin
+        echo "$GEM_BIN" >> $GITHUB_PATH
+        export PATH="$GEM_BIN:$PATH"
+        
+        # Install Puppet (includes facter and hiera)
+        gem install puppet -v "$PUPPET_VERSION" --no-document
         gem install deep_merge --no-document
         
         echo "Puppet version: $(puppet --version)"
