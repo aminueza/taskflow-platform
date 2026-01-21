@@ -1,0 +1,20 @@
+Style/FrozenStringLiteralComment:
+  Exclude:
+    - 'Rakefile'
+    - 'config.ru'
+    - 'config/**/*.rb'
+
+# TODO: Refactor MetricsController - it's too large
+Metrics/AbcSize:
+  Exclude:
+    - 'app/controllers/metrics_controller.rb'
+    - 'app/controllers/api/v1/users_controller.rb'
+
+Metrics/MethodLength:
+  Exclude:
+    - 'app/controllers/health_controller.rb'
+    - 'app/controllers/concerns/exception_handler.rb'
+    - 'app/services/user_registration_service.rb'
+    - 'app/workers/user_mailer_worker.rb'
+    - 'app/models/concerns/auditable.rb'
+
