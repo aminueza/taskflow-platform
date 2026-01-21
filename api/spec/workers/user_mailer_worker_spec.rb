@@ -12,9 +12,9 @@ RSpec.describe UserMailerWorker, type: :worker do
     let(:user) { create(:user) }
 
     it 'sends welcome email to user' do
-      expect {
+      expect do
         described_class.new.perform(user.id, 'welcome')
-      }.to change { ActionMailer::Base.deliveries.count }.by(1)
+      end.to change { ActionMailer::Base.deliveries.count }.by(1)
 
       mail = ActionMailer::Base.deliveries.last
       expect(mail.to).to include(user.email)
@@ -22,9 +22,9 @@ RSpec.describe UserMailerWorker, type: :worker do
     end
 
     it 'handles missing user gracefully' do
-      expect {
-        described_class.new.perform(999999)
-      }.to raise_error(ActiveRecord::RecordNotFound)
+      expect do
+        described_class.new.perform(999_999)
+      end.to raise_error(ActiveRecord::RecordNotFound)
     end
   end
 
@@ -41,11 +41,10 @@ RSpec.describe UserMailerWorker, type: :worker do
   describe 'job enqueuing' do
     it 'enqueues the job' do
       Sidekiq::Testing.fake! do
-        expect {
+        expect do
           described_class.perform_async(1)
-        }.to change(described_class.jobs, :size).by(1)
+        end.to change(described_class.jobs, :size).by(1)
       end
     end
   end
 end
-

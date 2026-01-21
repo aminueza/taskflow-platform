@@ -14,7 +14,7 @@ require 'database_cleaner/active_record'
 require 'factory_bot_rails'
 
 # Add additional requires below this line
-Dir[Rails.root.join('spec/support/**/*.rb')].sort.each { |f| require f }
+Rails.root.glob('spec/support/**/*.rb').each { |f| require f }
 
 begin
   ActiveRecord::Migration.maintain_test_schema!
@@ -55,4 +55,3 @@ Shoulda::Matchers.configure do |config|
     with.library :rails
   end
 end
-

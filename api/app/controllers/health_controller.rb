@@ -1,10 +1,12 @@
+# frozen_string_literal: true
+
 class HealthController < ApplicationController
   def index
     db_status = check_database
     redis_status = check_redis
     sidekiq_status = check_sidekiq
 
-    status = (db_status && redis_status && sidekiq_status) ? 'healthy' : 'unhealthy'
+    status = db_status && redis_status && sidekiq_status ? 'healthy' : 'unhealthy'
 
     render json: {
       status: status,
@@ -25,7 +27,7 @@ class HealthController < ApplicationController
     db_status = check_database
     redis_status = check_redis
 
-    status = (db_status && redis_status) ? 'ready' : 'not_ready'
+    status = db_status && redis_status ? 'ready' : 'not_ready'
 
     render json: {
       status: status,

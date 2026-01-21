@@ -14,10 +14,10 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
             'http://127.0.0.1:3000'
 
     resource '*',
-      headers: :any,
-      methods: [:get, :post, :put, :patch, :delete, :options, :head],
-      credentials: true,
-      expose: ['Authorization']
+             headers: :any,
+             methods: %i[get post put patch delete options head],
+             credentials: true,
+             expose: ['Authorization']
   end
 
   # Production: Add frontend URL if specified
@@ -26,10 +26,10 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
       origins ENV['FRONTEND_URL']
 
       resource '/api/*',
-        headers: :any,
-        methods: [:get, :post, :put, :patch, :delete, :options, :head],
-        credentials: true,
-        expose: ['Authorization']
+               headers: :any,
+               methods: %i[get post put patch delete options head],
+               credentials: true,
+               expose: ['Authorization']
     end
   end
 end

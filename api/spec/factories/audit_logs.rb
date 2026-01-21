@@ -6,7 +6,7 @@ FactoryBot.define do
     action { 'create' }
     resource_type { 'Task' }
     resource_id { 1 }
-    changes { { 'status' => ['pending', 'completed'] } }
+    metadata { { 'changes' => { 'status' => %w[pending completed] } } }
 
     trait :create_action do
       action { 'create' }

@@ -65,9 +65,9 @@ RSpec.describe 'Api::V1::Users', type: :request do
   describe 'POST /api/v1/users' do
     context 'with valid parameters' do
       it 'creates a new user' do
-        expect {
+        expect do
           post '/api/v1/users', params: valid_attributes
-        }.to change(User, :count).by(1)
+        end.to change(User, :count).by(1)
 
         expect(response).to have_http_status(:created)
       end
@@ -82,9 +82,9 @@ RSpec.describe 'Api::V1::Users', type: :request do
 
     context 'with invalid parameters' do
       it 'does not create a user' do
-        expect {
+        expect do
           post '/api/v1/users', params: invalid_attributes
-        }.not_to change(User, :count)
+        end.not_to change(User, :count)
 
         expect(response).to have_http_status(:unprocessable_content)
       end
@@ -150,7 +150,6 @@ RSpec.describe 'Api::V1::Users', type: :request do
   private
 
   def json_response
-    JSON.parse(response.body)
+    response.parsed_body
   end
 end
-

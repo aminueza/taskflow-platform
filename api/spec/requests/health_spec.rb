@@ -58,7 +58,6 @@ RSpec.describe 'Health Check', type: :request do
   private
 
   def json_response
-    JSON.parse(response.body)
+    response.parsed_body
   end
 end
-

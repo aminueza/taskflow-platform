@@ -15,7 +15,7 @@ RSpec.describe User, type: :model do
     it { is_expected.not_to allow_value('invalid_email').for(:email) }
 
     it 'validates case-insensitive uniqueness of email' do
-      user1 = create(:user, email: 'test@example.com')
+      create(:user, email: 'test@example.com')
       user2 = build(:user, email: 'TEST@EXAMPLE.COM')
 
       expect(user2).not_to be_valid
@@ -41,15 +41,15 @@ RSpec.describe User, type: :model do
 
     describe '.active' do
       it 'returns only active users' do
-        expect(User.active).to include(active_user)
-        expect(User.active).not_to include(deleted_user)
+        expect(described_class.active).to include(active_user)
+        expect(described_class.active).not_to include(deleted_user)
       end
     end
 
     describe '.recent' do
       it 'returns users ordered by created_at desc' do
         newer_user = create(:user)
-        expect(User.recent.first).to eq(newer_user)
+        expect(described_class.recent.first).to eq(newer_user)
       end
     end
   end
@@ -58,12 +58,12 @@ RSpec.describe User, type: :model do
     let(:user) { create(:user) }
 
     it 'sets deleted_at timestamp' do
-      expect { user.soft_delete! }.to change { user.deleted_at }.from(nil)
+      expect { user.soft_delete! }.to change(user, :deleted_at).from(nil)
     end
 
     it 'does not destroy the record' do
       user.soft_delete!
-      expect(User.find_by(id: user.id)).to be_present
+      expect(described_class.find_by(id: user.id)).to be_present
     end
   end
 

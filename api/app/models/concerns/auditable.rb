@@ -5,7 +5,7 @@ module Auditable
 
   included do
     has_many :audit_logs, as: :auditable, dependent: :destroy
-    after_commit :log_change, on: [:create, :update, :destroy]
+    after_commit :log_change, on: %i[create update destroy]
   end
 
   private

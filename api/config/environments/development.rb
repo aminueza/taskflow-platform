@@ -1,4 +1,4 @@
-require "active_support/core_ext/integer/time"
+require 'active_support/core_ext/integer/time'
 
 Rails.application.configure do
   config.enable_reloading = true
@@ -11,7 +11,7 @@ Rails.application.configure do
   config.cache_store = :memory_store, { size: 67_108_864 } # 64 MB in bytes
   config.public_file_server.enabled = true
   config.public_file_server.headers = {
-    "Cache-Control" => "public, max-age=#{2.days.to_i}"
+    'Cache-Control' => "public, max-age=#{2.days.to_i}"
   }
 
   config.active_support.deprecation = :log
@@ -25,9 +25,9 @@ Rails.application.configure do
   config.log_tags = [:request_id]
 
   # Allow requests from Docker service names and localhost variations
-  config.hosts << "web"
-  config.hosts << "web:3000"
-  config.hosts << "localhost"
-  config.hosts << "127.0.0.1"
-  config.hosts << ".localhost"
+  config.hosts << 'web'
+  config.hosts << 'web:3000'
+  config.hosts << 'localhost'
+  config.hosts << '127.0.0.1'
+  config.hosts << '.localhost'
 end

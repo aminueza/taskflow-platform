@@ -42,4 +42,3 @@ RSpec.configure do |config|
   # Profile slow tests
   config.profile_examples = 10
 end
-

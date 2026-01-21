@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 module Api
   module V1
     class TasksController < Api::BaseController
       def index
-        tasks = Task.includes(:user).all.order(created_at: :desc)
+        tasks = Task.includes(:user).order(created_at: :desc)
         render json: tasks
       end
 

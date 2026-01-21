@@ -75,25 +75,25 @@ RSpec.describe Task, type: :model do
 
     describe '.pending' do
       it 'returns only pending tasks' do
-        expect(Task.pending).to include(pending_task)
-        expect(Task.pending).not_to include(in_progress_task)
-        expect(Task.pending).not_to include(completed_task)
+        expect(described_class.pending).to include(pending_task)
+        expect(described_class.pending).not_to include(in_progress_task)
+        expect(described_class.pending).not_to include(completed_task)
       end
     end
 
     describe '.in_progress' do
       it 'returns only in_progress tasks' do
-        expect(Task.in_progress).to include(in_progress_task)
-        expect(Task.in_progress).not_to include(pending_task)
-        expect(Task.in_progress).not_to include(completed_task)
+        expect(described_class.in_progress).to include(in_progress_task)
+        expect(described_class.in_progress).not_to include(pending_task)
+        expect(described_class.in_progress).not_to include(completed_task)
       end
     end
 
     describe '.completed' do
       it 'returns only completed tasks' do
-        expect(Task.completed).to include(completed_task)
-        expect(Task.completed).not_to include(pending_task)
-        expect(Task.completed).not_to include(in_progress_task)
+        expect(described_class.completed).to include(completed_task)
+        expect(described_class.completed).not_to include(pending_task)
+        expect(described_class.completed).not_to include(in_progress_task)
       end
     end
   end

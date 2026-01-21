@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 module Api
   module V1
     class UsersController < Api::BaseController
       def index
-        users = User.all.order(created_at: :desc)
+        users = User.order(created_at: :desc)
 
         if params[:page].present? || params[:per_page].present?
           page = params[:page].to_i.positive? ? params[:page].to_i : 1

@@ -15,20 +15,20 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
       get '/api/v1/tasks'
 
       expect(response).to have_http_status(:ok)
-      expect(JSON.parse(response.body).size).to eq(5)
+      expect(response.parsed_body.size).to eq(5)
     end
 
     it 'returns tasks ordered by created_at desc' do
       get '/api/v1/tasks'
 
-      tasks = JSON.parse(response.body)
+      tasks = response.parsed_body
       expect(tasks.first['created_at']).to be >= tasks.last['created_at']
     end
 
     it 'includes user association' do
       get '/api/v1/tasks'
 
-      tasks = JSON.parse(response.body)
+      tasks = response.parsed_body
       task_with_user = tasks.find { |t| t['user_id'].present? }
       expect(task_with_user).to be_present
     end
@@ -41,7 +41,7 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
       get "/api/v1/tasks/#{task.id}"
 
       expect(response).to have_http_status(:ok)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json['id']).to eq(task.id)
       expect(json['title']).to eq(task.title)
     end
@@ -76,7 +76,7 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
         post '/api/v1/tasks', params: valid_attributes
 
         expect(response).to have_http_status(:created)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['title']).to eq('New Task')
         expect(json['description']).to eq('Task description')
         expect(json['status']).to eq('pending')
@@ -87,7 +87,7 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
         post '/api/v1/tasks', params: valid_attributes
 
         expect(response).to have_http_status(:created)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['user_id']).to be_nil
       end
 
@@ -96,7 +96,7 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
         post '/api/v1/tasks', params: valid_attributes
 
         expect(response).to have_http_status(:created)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['description']).to be_nil
       end
     end
@@ -106,7 +106,7 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
         post '/api/v1/tasks', params: { task: { status: 'pending' } }
 
         expect(response).to have_http_status(:unprocessable_content)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['errors']).to be_present
       end
 
@@ -116,7 +116,7 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
         post '/api/v1/tasks', params: invalid_attributes
 
         expect(response).to have_http_status(:unprocessable_content)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['errors']).to include(match(/status/i))
       end
 
@@ -140,7 +140,7 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
         }
 
         expect(response).to have_http_status(:ok)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['title']).to eq('Updated Title')
       end
 
@@ -150,7 +150,7 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
         }
 
         expect(response).to have_http_status(:ok)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['status']).to eq('completed')
       end
 
@@ -164,7 +164,7 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
         }
 
         expect(response).to have_http_status(:ok)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['title']).to eq('New Title')
         expect(json['description']).to eq('New Description')
         expect(json['status']).to eq('in_progress')
@@ -220,15 +220,15 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
     end
   end
 
-  describe 'POST /api/v1/tasks/:id/toggle_status' do
+  describe 'PATCH /api/v1/tasks/:id/toggle_status' do
     context 'when task is pending' do
       let(:task) { create(:task, status: 'pending') }
 
       it 'changes status to completed' do
-        post "/api/v1/tasks/#{task.id}/toggle_status"
+        patch "/api/v1/tasks/#{task.id}/toggle_status"
 
         expect(response).to have_http_status(:ok)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['status']).to eq('completed')
       end
     end
@@ -237,10 +237,10 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
       let(:task) { create(:task, status: 'completed') }
 
       it 'changes status to pending' do
-        post "/api/v1/tasks/#{task.id}/toggle_status"
+        patch "/api/v1/tasks/#{task.id}/toggle_status"
 
         expect(response).to have_http_status(:ok)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['status']).to eq('pending')
       end
     end
@@ -249,16 +249,16 @@ RSpec.describe 'Api::V1::Tasks', type: :request do
       let(:task) { create(:task, status: 'in_progress') }
 
       it 'changes status to completed' do
-        post "/api/v1/tasks/#{task.id}/toggle_status"
+        patch "/api/v1/tasks/#{task.id}/toggle_status"
 
         expect(response).to have_http_status(:ok)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['status']).to eq('completed')
       end
     end
 
     it 'returns 404 for non-existent task' do
-      post '/api/v1/tasks/999999/toggle_status'
+      patch '/api/v1/tasks/999999/toggle_status'
 
       expect(response).to have_http_status(:not_found)
     end

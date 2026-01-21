@@ -26,12 +26,12 @@ class UserRegistrationService
   private
 
   def validate_params!
-    required_fields = [:email, :username, :password]
+    required_fields = %i[email username password]
     missing_fields = required_fields - @params.keys
 
-    if missing_fields.any?
-      raise RegistrationError, "Missing required fields: #{missing_fields.join(', ')}"
-    end
+    return unless missing_fields.any?
+
+    raise RegistrationError, "Missing required fields: #{missing_fields.join(", ")}"
   end
 
   def create_user
@@ -49,22 +49,22 @@ class UserRegistrationService
 
   def track_registration
     # Track in Application Insights
-    if ENV['APPINSIGHTS_INSTRUMENTATIONKEY'].present?
-      client = ApplicationInsights::TelemetryClient.new(
-        ENV['APPINSIGHTS_INSTRUMENTATIONKEY']
-      )
+    return if ENV['APPINSIGHTS_INSTRUMENTATIONKEY'].blank?
 
-      client.track_event(
-        'user_registered',
-        properties: {
-          user_id: @user.id,
-          email: @user.email,
-          timestamp: Time.current.iso8601
-        }
-      )
+    client = ApplicationInsights::TelemetryClient.new(
+      ENV.fetch('APPINSIGHTS_INSTRUMENTATIONKEY', nil)
+    )
 
-      client.flush
-    end
+    client.track_event(
+      'user_registered',
+      properties: {
+        user_id: @user.id,
+        email: @user.email,
+        timestamp: Time.current.iso8601
+      }
+    )
+
+    client.flush
   end
 
   def log_success

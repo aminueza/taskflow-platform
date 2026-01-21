@@ -14,9 +14,7 @@ threads min_threads_count, max_threads_count
 workers ENV.fetch('WEB_CONCURRENCY', 2)
 
 # Use clustered mode in production
-if ENV.fetch('RAILS_ENV', 'development') == 'production'
-  preload_app!
-end
+preload_app! if ENV.fetch('RAILS_ENV', 'development') == 'production'
 
 # Port binding
 port ENV.fetch('PORT', 3000)
@@ -44,11 +42,10 @@ before_fork do
 end
 
 # Lowlevel error handler
-lowlevel_error_handler do |e, env|
+lowlevel_error_handler do |e, _env|
   [
     500,
     { 'Content-Type' => 'application/json' },
     [{ error: 'Internal Server Error', message: e.message }.to_json]
   ]
 end
-

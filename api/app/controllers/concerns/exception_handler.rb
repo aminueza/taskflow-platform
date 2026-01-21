@@ -63,10 +63,10 @@ module ExceptionHandler
   end
 
   def track_exception(exception)
-    return unless ENV['APPINSIGHTS_INSTRUMENTATIONKEY'].present?
+    return if ENV['APPINSIGHTS_INSTRUMENTATIONKEY'].blank?
 
     client = ApplicationInsights::TelemetryClient.new(
-      ENV['APPINSIGHTS_INSTRUMENTATIONKEY']
+      ENV.fetch('APPINSIGHTS_INSTRUMENTATIONKEY', nil)
     )
 
     client.track_exception(

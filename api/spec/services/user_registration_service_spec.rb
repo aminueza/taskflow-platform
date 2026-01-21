@@ -21,9 +21,9 @@ RSpec.describe UserRegistrationService do
 
     context 'with valid parameters' do
       it 'creates a new user' do
-        expect {
+        expect do
           described_class.new(valid_params).call
-        }.to change(User, :count).by(1)
+        end.to change(User, :count).by(1)
       end
 
       it 'returns the created user' do
@@ -34,37 +34,33 @@ RSpec.describe UserRegistrationService do
       end
 
       it 'queues a welcome email' do
-        expect {
+        expect do
           described_class.new(valid_params).call
-        }.to change(UserMailerWorker.jobs, :size).by(1)
+        end.to change(UserMailerWorker.jobs, :size).by(1)
       end
     end
 
     context 'with invalid parameters' do
       it 'raises an error' do
-        expect {
+        expect do
           described_class.new(invalid_params).call
-        }.to raise_error(UserRegistrationService::RegistrationError)
+        end.to raise_error(UserRegistrationService::RegistrationError)
       end
 
       it 'does not create a user' do
-        expect {
-          begin
-            described_class.new(invalid_params).call
-          rescue UserRegistrationService::RegistrationError
-            # expected
-          end
-        }.not_to change(User, :count)
+        expect do
+          described_class.new(invalid_params).call
+        rescue UserRegistrationService::RegistrationError
+          # expected
+        end.not_to change(User, :count)
       end
 
       it 'does not queue a welcome email' do
-        expect {
-          begin
-            described_class.new(invalid_params).call
-          rescue UserRegistrationService::RegistrationError
-            # expected
-          end
-        }.not_to change(UserMailerWorker.jobs, :size)
+        expect do
+          described_class.new(invalid_params).call
+        rescue UserRegistrationService::RegistrationError
+          # expected
+        end.not_to change(UserMailerWorker.jobs, :size)
       end
     end
 
@@ -72,11 +68,10 @@ RSpec.describe UserRegistrationService do
       before { create(:user, email: 'newuser@example.com') }
 
       it 'raises an error' do
-        expect {
+        expect do
           described_class.new(valid_params).call
-        }.to raise_error(UserRegistrationService::RegistrationError)
+        end.to raise_error(UserRegistrationService::RegistrationError)
       end
     end
   end
 end
-

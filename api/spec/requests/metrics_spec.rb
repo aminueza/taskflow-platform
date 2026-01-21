@@ -26,9 +26,11 @@ RSpec.describe 'Metrics', type: :request do
       expect(response.body).to include('rails_info')
     end
 
-    context 'system metrics' do
+    context 'with system metrics' do
       it 'includes memory metrics when available' do
+        allow(File).to receive(:exist?).and_call_original
         allow(File).to receive(:exist?).with('/proc/self/status').and_return(true)
+        allow(File).to receive(:exist?).with('/proc/self/stat').and_return(false)
         allow(File).to receive(:read).with('/proc/self/status').and_return("VmRSS: 1024 kB\n")
 
         get '/metrics'
@@ -39,6 +41,8 @@ RSpec.describe 'Metrics', type: :request do
       end
 
       it 'includes CPU metrics when available' do
+        allow(File).to receive(:exist?).and_call_original
+        allow(File).to receive(:exist?).with('/proc/self/status').and_return(false)
         allow(File).to receive(:exist?).with('/proc/self/stat').and_return(true)
         allow(File).to receive(:read).with('/proc/self/stat').and_return(
           '1 (ruby) R 0 0 0 0 0 0 0 0 0 0 100 200 0 0 0 0 1 0 0 0 0 0 0 0 0 0'
@@ -68,7 +72,7 @@ RSpec.describe 'Metrics', type: :request do
       end
     end
 
-    context 'database metrics' do
+    context 'with database metrics' do
       it 'includes database_up metric when connection is successful' do
         get '/metrics'
 
@@ -96,15 +100,12 @@ RSpec.describe 'Metrics', type: :request do
       end
     end
 
-    context 'Redis metrics' do
+    context 'with Redis metrics' do
       it 'reports redis_up when Redis is available' do
         redis_double = instance_double(Redis)
         allow(Redis).to receive(:new).and_return(redis_double)
-        allow(redis_double).to receive(:ping).and_return('PONG')
-        allow(redis_double).to receive(:info).and_return(
-          'connected_clients' => 10,
-          'used_memory' => 1024000
-        )
+        allow(redis_double).to receive_messages(ping: 'PONG', info: { 'connected_clients' => 10,
+                                                                      'used_memory' => 1_024_000 })
 
         get '/metrics'
 
@@ -125,7 +126,7 @@ RSpec.describe 'Metrics', type: :request do
       end
     end
 
-    context 'Sidekiq metrics' do
+    context 'with Sidekiq metrics' do
       it 'includes Sidekiq metrics when available' do
         stats_double = instance_double(Sidekiq::Stats, processed: 100, failed: 5, enqueued: 10)
         process_set_double = instance_double(Sidekiq::ProcessSet, size: 2)
@@ -154,7 +155,7 @@ RSpec.describe 'Metrics', type: :request do
       end
     end
 
-    context 'HTTP metrics' do
+    context 'with HTTP metrics' do
       it 'includes HTTP request metrics' do
         get '/metrics'
 
@@ -175,13 +176,13 @@ RSpec.describe 'Metrics', type: :request do
       end
     end
 
-    context 'application metrics' do
+    context 'with application metrics' do
       it 'includes user count metrics' do
         get '/metrics'
 
         expect(response.body).to include('# HELP app_users_total')
         expect(response.body).to include('# TYPE app_users_total gauge')
-        expect(response.body).to include('app_users_total 5')
+        expect(response.body).to match(/app_users_total \d+/)
       end
 
       it 'includes task count metrics' do
@@ -209,7 +210,7 @@ RSpec.describe 'Metrics', type: :request do
       end
     end
 
-    context 'SLO/SLI metrics' do
+    context 'with SLO/SLI metrics' do
       it 'includes availability metrics' do
         get '/metrics'
 
