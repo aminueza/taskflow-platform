@@ -13,6 +13,8 @@ Web application stack on Azure with Terraform, Puppet, and automated deployments
 - Puppet-managed bastion host
 - GitHub Actions CI/CD
 
+![Application Screenshot](docs/images/application.png)
+
 ## Architecture
 
 ```
@@ -59,8 +61,9 @@ See [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for details.
 ├── frontend/                # React app
 ├── infrastructure/terraform/ # IaC modules
 ├── puppet/                  # Configuration management
+├── observability/           # Monitoring (Grafana, Prometheus, Tempo)
 ├── docs/                    # Documentation
-└── scripts/                 # Helper scripts
+└── scripts/                 # Helper scripts (generate-secrets, quick-start, tunnel)
 ```
 
 ## Technology

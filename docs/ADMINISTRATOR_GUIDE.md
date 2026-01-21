@@ -551,6 +551,31 @@ az monitor metrics alert create \
   --description "Alert when CPU exceeds 80%"
 ```
 
+### Grafana Dashboards (Local Development)
+
+For local development, Grafana provides visual monitoring dashboards.
+
+**Application Metrics Dashboard:**
+
+![Grafana Rails Dashboard](images/grafana_rails.png)
+
+Tracks:
+- Total users and tasks
+- Database and Redis status
+- Sidekiq job processing
+- Task distribution by status
+
+**SLO/SLI Dashboard:**
+
+![Grafana SLO/SLI Dashboard](images/grafana_slo_sli.png)
+
+Monitors:
+- Availability SLI (target: 99%)
+- Error rate SLI (target: <1%)
+- Latency SLI (target: p95 <200ms)
+
+Access Grafana at `http://localhost:3000` when running local stack.
+
 ---
 
 ## Security Operations

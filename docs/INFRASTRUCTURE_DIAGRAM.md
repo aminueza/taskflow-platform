@@ -214,6 +214,7 @@ Admin Access → SSH Tunnel → Bastion → pgAdmin → Database
 
 ## Monitoring & Observability
 
+**Production (Azure):**
 ```
 Application Logs → Container Apps Logs → Azure Log Analytics
                                               │
@@ -221,6 +222,17 @@ Application Logs → Container Apps Logs → Azure Log Analytics
                                               ├─→ Alerts
                                               └─→ Application Insights
 ```
+
+**Local Development:**
+```
+Application → OpenTelemetry Collector → Prometheus
+                                    ↓
+                                  Tempo (Traces)
+                                    ↓
+                                Grafana Dashboards
+```
+
+See [ADMINISTRATOR_GUIDE.md](ADMINISTRATOR_GUIDE.md#monitoring--alerts) for dashboard screenshots and configuration.
 
 ## Disaster Recovery
 

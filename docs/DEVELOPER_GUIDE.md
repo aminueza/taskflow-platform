@@ -38,6 +38,15 @@ taskflow-platform/
 ├── infrastructure/        # Infrastructure as Code
 │   └── terraform/         # Terraform configurations
 ├── puppet/                # Puppet configuration management
+├── observability/         # Monitoring stack (local dev)
+│   ├── otel-collector.yaml    # OpenTelemetry config
+│   ├── prometheus.yml         # Metrics collection
+│   ├── tempo.yaml             # Distributed tracing
+│   └── grafana/               # Dashboards
+├── scripts/               # Helper scripts
+│   ├── generate-secrets.sh    # Create .env file
+│   ├── quick-start.sh         # Start local stack
+│   └── tunnel.sh              # Bastion proxy
 └── docs/                  # Documentation
 ```
 
