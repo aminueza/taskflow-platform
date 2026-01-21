@@ -82,13 +82,22 @@ runs:
       run: |
         echo "📦 Installing Puppet testing tools..."
         
-        # Install Puppet and core dependencies
-        gem install puppet -v "$PUPPET_VERSION" --no-document
-        gem install facter --no-document
+        # Add gem bin to PATH and persist for subsequent steps
+        GEM_BIN=$(ruby -e 'puts Gem.user_dir')/bin
+        echo "$GEM_BIN" >> $GITHUB_PATH
+        export PATH="$GEM_BIN:$PATH"
         
-        # Install testing tools
+        # Also add system gem bin
+        SYSTEM_GEM_BIN=$(gem environment gemdir)/bin
+        echo "$SYSTEM_GEM_BIN" >> $GITHUB_PATH
+        export PATH="$SYSTEM_GEM_BIN:$PATH"
+        
+        # Install testing tools first (to avoid facter conflicts)
         gem install rspec-puppet --no-document
         gem install rspec-puppet-facts --no-document
+        
+        # Install Puppet (will use already-installed compatible facter)
+        gem install puppet -v "$PUPPET_VERSION" --no-document
         gem install puppetlabs_spec_helper --no-document
         gem install puppet-lint --no-document
         gem install metadata-json-lint --no-document
@@ -103,6 +112,8 @@ runs:
         fi
         
         echo "✅ Tools installed successfully"
+        echo "PATH: $PATH"
+        which puppet || echo "puppet location: $(gem which puppet 2>/dev/null || true)"
         puppet --version
         ruby --version
 
