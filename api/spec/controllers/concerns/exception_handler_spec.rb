@@ -4,7 +4,7 @@ require 'rails_helper'
 
 RSpec.describe ExceptionHandler, type: :controller do
   controller(ActionController::API) do
-    include ExceptionHandler
+    include described_class
 
     def test_standard_error
       raise StandardError, 'Test error'
@@ -45,7 +45,7 @@ RSpec.describe ExceptionHandler, type: :controller do
   end
 
   describe 'StandardError handling' do
-    context 'in non-production environment' do
+    context 'when in non-production environment' do
       before { allow(Rails).to receive(:env).and_return(ActiveSupport::StringInquirer.new('development')) }
 
       it 'returns detailed error with backtrace' do
@@ -58,7 +58,7 @@ RSpec.describe ExceptionHandler, type: :controller do
       end
     end
 
-    context 'in production environment' do
+    context 'when in production environment' do
       before { allow(Rails).to receive(:env).and_return(ActiveSupport::StringInquirer.new('production')) }
 
       it 'returns generic error message' do

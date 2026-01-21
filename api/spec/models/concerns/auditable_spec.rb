@@ -65,10 +65,11 @@ RSpec.describe Auditable, type: :model do
 
     context 'when creating a record' do
       it 'logs the create action' do
-        expect(AuditLog).to receive(:create!).with(
+        allow(AuditLog).to receive(:create!)
+        instance.save!
+        expect(AuditLog).to have_received(:create!).with(
           hash_including(action: 'created')
         )
-        instance.save!
       end
     end
 
@@ -79,13 +80,14 @@ RSpec.describe Auditable, type: :model do
       end
 
       it 'logs the error and does not raise' do
-        expect(Rails.logger).to receive(:error).with(
+        allow(Rails.logger).to receive(:error)
+        expect { instance.save! }.not_to raise_error
+        expect(Rails.logger).to have_received(:error).with(
           hash_including(
             event: 'audit_log_failed',
             error: 'Audit failed'
           )
         )
-        expect { instance.save! }.not_to raise_error
       end
     end
   end

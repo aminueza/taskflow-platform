@@ -3,7 +3,7 @@
 require 'rails_helper'
 
 RSpec.describe Api::BaseController, type: :controller do
-  controller(Api::BaseController) do
+  controller(described_class) do
     def test_record_not_found
       raise ActiveRecord::RecordNotFound, 'User not found'
     end
