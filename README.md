@@ -30,15 +30,18 @@ Full diagram: [docs/INFRASTRUCTURE_DIAGRAM.md](docs/INFRASTRUCTURE_DIAGRAM.md)
 
 ```bash
 # Local development
-docker-compose up
+./scripts/generate-secrets.sh
+./scripts/quick-start.sh
 
-# Deploy infrastructure
+# Deploy infrastructure (uses remote state in Azure Storage Account)
 cd infrastructure/terraform/landing_zone
 terraform apply
 
 # Access bastion via SOCKS5 proxy
 ./scripts/tunnel.sh
 ```
+
+See [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for details.
 
 ## Documentation
 

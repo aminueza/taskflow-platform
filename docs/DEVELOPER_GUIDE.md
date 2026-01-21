@@ -90,8 +90,31 @@ npm start
 
 ### 4. Using Docker Compose (Recommended)
 
+#### Quick Start
+
 ```bash
-# Start all services
+# 1. Generate secrets
+./scripts/generate-secrets.sh
+
+# 2. Start everything
+./scripts/quick-start.sh
+```
+
+The generate script creates:
+- Database credentials
+- Rails secret keys
+- Redis password
+- pgAdmin credentials
+
+The quick-start script:
+- Starts docker-compose
+- Creates and migrates database
+- Seeds initial data
+
+#### Manual Control
+
+```bash
+# Start services
 docker-compose up
 
 # Run in detached mode
@@ -105,10 +128,13 @@ docker-compose down
 ```
 
 **Services:**
-- Frontend: http://localhost:3001
+- Frontend: http://localhost:5173
 - API: http://localhost:3000
+- pgAdmin: http://localhost:5050
 - PostgreSQL: localhost:5432
 - Redis: localhost:6379
+
+**Credentials:** Check `.env` file for generated passwords
 
 ---
 
@@ -291,9 +317,27 @@ docker tag taskflow-frontend myregistry.azurecr.io/frontend:latest
 docker push myregistry.azurecr.io/api:latest
 docker push myregistry.azurecr.io/frontend:latest
 
-# Deploy with Terraform
+# Deploy with Terraform (uses remote state in Azure Storage Account)
 cd infrastructure/terraform/applications
 terraform apply
+```
+
+### Infrastructure Management
+
+Terraform state is stored remotely in Azure Storage Account for team collaboration and state locking.
+
+```bash
+# View current state
+terraform show
+
+# Plan changes
+terraform plan
+
+# Apply changes
+terraform apply
+
+# View outputs
+terraform output
 ```
 
 ---
