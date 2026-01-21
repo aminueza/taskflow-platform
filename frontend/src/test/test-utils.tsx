@@ -1,6 +1,6 @@
 import { ReactElement } from 'react'
 import { render, RenderOptions } from '@testing-library/react'
-import { BrowserRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const createTestQueryClient = () =>
@@ -18,6 +18,7 @@ const createTestQueryClient = () =>
 interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   withRouter?: boolean
   withQueryClient?: boolean
+  initialEntries?: string[]
 }
 
 function customRender(
@@ -25,30 +26,30 @@ function customRender(
   options: CustomRenderOptions = {}
 ) {
   const {
-    withRouter = false,
-    withQueryClient = false,
+    withRouter = true,
+    withQueryClient = true,
+    initialEntries,
     ...renderOptions
   } = options
 
-  let Wrapper = ({ children }: { children: React.ReactNode }) => <>{children}</>
+  const queryClient = createTestQueryClient()
 
-  if (withQueryClient) {
-    const queryClient = createTestQueryClient()
-    const QueryWrapper = Wrapper
-    Wrapper = ({ children }) => (
-      <QueryClientProvider client={queryClient}>
-        <QueryWrapper>{children}</QueryWrapper>
-      </QueryClientProvider>
-    )
-  }
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    let wrapped = <>{children}</>
 
-  if (withRouter) {
-    const RouterWrapper = Wrapper
-    Wrapper = ({ children }) => (
-      <BrowserRouter>
-        <RouterWrapper>{children}</RouterWrapper>
-      </BrowserRouter>
-    )
+    if (withQueryClient) {
+      wrapped = (
+        <QueryClientProvider client={queryClient}>
+          {wrapped}
+        </QueryClientProvider>
+      )
+    }
+
+    if (withRouter) {
+      wrapped = <MemoryRouter initialEntries={initialEntries}>{wrapped}</MemoryRouter>
+    }
+
+    return wrapped
   }
 
   return render(ui, { wrapper: Wrapper, ...renderOptions })
