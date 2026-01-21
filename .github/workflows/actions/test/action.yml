@@ -207,8 +207,6 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
-        cache: ${{ inputs.package-manager }}
-        cache-dependency-path: ${{ inputs.frontend-working-directory }}/package-lock.json
 
     - name: "📦 Install Frontend dependencies"
       if: ${{ inputs.app-type == 'frontend' || inputs.app-type == 'both' }}
