@@ -1,4 +1,18 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-webapp-stack}-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - webapp-network
+
   postgres:
     image: postgres:15-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-webapp-stack}-postgres
@@ -24,17 +38,18 @@ services:
 
   web:
     build:
-      context: ./rails-app
+      context: ./api
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-webapp-stack}-web
     command: bash -c "bundle check || bundle install && rm -f tmp/pids/server.pid && bundle exec rails db:prepare && bundle exec rails server -b 0.0.0.0"
     volumes:
-      - ./rails-app:/app:cached
+      - ./api:/app:cached
       - rails_bundle:/usr/local/bundle
     ports:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-webapp_development}
+      REDIS_URL: redis://redis:6379/0
       RAILS_ENV: ${RAILS_ENV:-development}
       RAILS_LOG_TO_STDOUT: "true"
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev_secret_key_base}
@@ -50,6 +65,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     stdin_open: true
     tty: true
     networks:
@@ -57,15 +74,16 @@ services:
 
   worker:
     build:
-      context: ./rails-app
+      context: ./api
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-webapp-stack}-worker
     command: bash -c "bundle check || bundle install && bundle exec rails solid_queue:start"
     volumes:
-      - ./rails-app:/app:cached
+      - ./api:/app:cached
       - rails_bundle:/usr/local/bundle
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-webapp_development}
+      REDIS_URL: redis://redis:6379/0
       RAILS_ENV: ${RAILS_ENV:-development}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev_secret_key_base}
     env_file:
@@ -73,6 +91,8 @@ services:
     restart: unless-stopped
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - webapp-network
@@ -125,10 +145,82 @@ services:
     networks:
       - webapp-network
 
+  # Observability Stack
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-webapp-stack}-otel-collector
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otel-collector.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8888:8888"   # Prometheus metrics
+      - "8889:8889"   # Prometheus exporter
+      - "13133:13133" # Health check
+    restart: unless-stopped
+    networks:
+      - webapp-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-webapp-stack}-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - webapp-network
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-webapp-stack}-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml
+      - tempo_data:/tmp/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP
+      - "4317"        # OTLP gRPC (internal)
+    restart: unless-stopped
+    networks:
+      - webapp-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-webapp-stack}-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3030:3000"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - tempo
+    networks:
+      - webapp-network
+
 volumes:
   postgres_data:
+  redis_data:
   rails_bundle:
   pgadmin_data:
+  prometheus_data:
+  tempo_data:
+  grafana_data:
 
 networks:
   webapp-network:

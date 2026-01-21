@@ -553,7 +553,7 @@ az monitor metrics alert create \
 
 ### Grafana Dashboards (Local Development)
 
-For local development, Grafana provides visual monitoring dashboards.
+For local development, Grafana provides visual monitoring dashboards. Dashboards are automatically provisioned from `observability/grafana/dashboards/`.
 
 **Application Metrics Dashboard:**
 
@@ -574,7 +574,15 @@ Monitors:
 - Error rate SLI (target: <1%)
 - Latency SLI (target: p95 <200ms)
 
-Access Grafana at `http://localhost:3000` when running local stack.
+**Access:**
+- URL: http://localhost:3030
+- Default credentials: admin/admin (change on first login)
+- Dashboards are in the "TaskFlow" folder
+
+**Adding custom dashboards:**
+1. Export dashboard JSON from Grafana
+2. Save to `observability/grafana/dashboards/`
+3. Restart Grafana: `docker-compose restart grafana`
 
 ---
 

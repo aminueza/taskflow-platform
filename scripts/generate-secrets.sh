@@ -41,6 +41,10 @@ TEST_DATABASE_URL=postgresql://postgres:$(generate_password)@postgres:5432/webap
 PGADMIN_DEFAULT_EMAIL=admin@example.com
 PGADMIN_DEFAULT_PASSWORD=$(generate_password)
 
+# Grafana Configuration
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=$(generate_password)
+
 # Frontend Configuration
 VITE_API_URL=http://localhost:3000
 
@@ -63,6 +67,11 @@ echo "   pgAdmin:"
 echo "     - URL: http://localhost:5050"
 echo "     - Email: admin@example.com"
 echo "     - Password: (see .env file - PGADMIN_DEFAULT_PASSWORD)"
+echo ""
+echo "   Grafana:"
+echo "     - URL: http://localhost:3030"
+echo "     - User: admin"
+echo "     - Password: (see .env file - GRAFANA_ADMIN_PASSWORD)"
 echo ""
 echo "⚠️  IMPORTANT: .env file has been created with sensitive data"
 echo "   - DO NOT commit this file to git (already in .gitignore)"

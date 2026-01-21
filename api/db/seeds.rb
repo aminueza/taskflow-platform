@@ -15,26 +15,33 @@ User.destroy_all
 # ============================================================================
 puts '  Creating users...'
 
+default_password = 'password123'
+
 users = [
   {
     username: 'alice',
-    email: 'alice@example.com'
+    email: 'alice@example.com',
+    password: default_password
   },
   {
     username: 'bob',
-    email: 'bob@example.com'
+    email: 'bob@example.com',
+    password: default_password
   },
   {
     username: 'carol',
-    email: 'carol@example.com'
+    email: 'carol@example.com',
+    password: default_password
   },
   {
     username: 'david',
-    email: 'david@example.com'
+    email: 'david@example.com',
+    password: default_password
   },
   {
     username: 'eve',
-    email: 'eve@example.com'
+    email: 'eve@example.com',
+    password: default_password
   }
 ].map do |attrs|
   User.create!(attrs)

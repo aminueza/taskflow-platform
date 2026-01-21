@@ -140,10 +140,22 @@ docker-compose down
 - Frontend: http://localhost:5173
 - API: http://localhost:3000
 - pgAdmin: http://localhost:5050
+- Grafana: http://localhost:3030
+- Prometheus: http://localhost:9090
 - PostgreSQL: localhost:5432
 - Redis: localhost:6379
 
 **Credentials:** Check `.env` file for generated passwords
+
+**Observability:**
+- Grafana dashboards (auto-loaded):
+  - Rails Application Dashboard - users, tasks, database, Redis, Sidekiq
+  - SLO/SLI Dashboard - availability, error rate, latency metrics
+- Prometheus collects metrics from Rails, PostgreSQL, Redis
+- Tempo stores distributed traces
+- OpenTelemetry Collector processes telemetry data
+
+Dashboards are in `observability/grafana/dashboards/` and loaded automatically on startup.
 
 ---
 
