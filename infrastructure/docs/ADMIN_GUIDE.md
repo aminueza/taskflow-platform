@@ -48,14 +48,64 @@ git commit -m "Add new admin user"
 git push origin main
 ```
 
+## 🌐 Accessing Internal HTTP Services
+
+Internal services like pgAdmin run on the bastion host. Use the SOCKS5 proxy tunnel to access them.
+
+### Starting the Proxy
+
+```bash
+# Run from project root
+./scripts/tunnel.sh
+```
+
+This creates:
+- Azure Bastion tunnel (port 2222)
+- SOCKS5 proxy (localhost:8080)
+
+### Access Services
+
+Configure browser to use SOCKS5 proxy `localhost:8080`:
+
+**Firefox**
+1. Settings → Network Settings → Manual proxy configuration
+2. SOCKS Host: `localhost`, Port: `8080`
+3. Enable "Proxy DNS when using SOCKS v5"
+
+**Chrome**
+```bash
+google-chrome --proxy-server="socks5://localhost:8080"
+```
+
+Then access:
+- pgAdmin: `http://<bastion-private-ip>:5050`
+- Apps subnet: `http://10.0.2.x`
+- Database subnet: `http://10.0.3.x`
+
+### Test Connection
+
+```bash
+curl --proxy socks5h://localhost:8080 http://google.com
+```
+
+### Custom Ports
+
+```bash
+SOCKS_PORT=9090 TUNNEL_PORT=3333 ./scripts/tunnel.sh
+```
+
+### Stop Proxy
+
+Press `Ctrl+C` in the terminal running tunnel.sh
+
 ## 🗄️ Database Management with pgAdmin
 
-pgAdmin runs on the bastion host at `http://<bastion-ip>:5050`.
+pgAdmin runs on the bastion host. Access via SSH tunnel at `http://localhost:5050`.
 
 ### Initial Access
 
 ```
-URL: http://<bastion-ip>:5050
+URL: http://localhost:5050
 Email: admin@example.com
 Password: admin (change this!)
 ```
