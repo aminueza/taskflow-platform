@@ -32,6 +32,27 @@ variable "application_name" {
 }
 
 ##########################################################
+#                   CONTAINER REGISTRY CONFIG            #
+##########################################################
+
+variable "acr_login_server" {
+  description = "ACR login server URL (e.g., myacr.azurecr.io)"
+  type        = string
+}
+
+variable "acr_admin_username" {
+  description = "ACR admin username"
+  type        = string
+  sensitive   = true
+}
+
+variable "acr_admin_password" {
+  description = "ACR admin password"
+  type        = string
+  sensitive   = true
+}
+
+##########################################################
 #                   CONTAINER APPS CONFIG                #
 ##########################################################
 

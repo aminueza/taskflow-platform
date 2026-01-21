@@ -4,6 +4,21 @@ resource "azurerm_container_app" "main" {
   resource_group_name          = var.resource_group_name
   revision_mode                = var.revision_mode
 
+  identity {
+    type         = var.identity_type
+    identity_ids = length(var.identity_ids) > 0 ? var.identity_ids : null
+  }
+
+  dynamic "registry" {
+    for_each = var.registry_server != null ? [1] : []
+    content {
+      server               = var.registry_server
+      identity             = var.registry_identity
+      username             = var.registry_username
+      password_secret_name = var.registry_password != null ? "registry-password" : null
+    }
+  }
+
   template {
     dynamic "init_container" {
       for_each = var.init_container != null ? [var.init_container] : []
@@ -66,6 +81,15 @@ resource "azurerm_container_app" "main" {
     content {
       name  = secret.key
       value = secret.value
+    }
+  }
+
+  # Add registry password as secret if using admin auth
+  dynamic "secret" {
+    for_each = var.registry_password != null ? [1] : []
+    content {
+      name  = "registry-password"
+      value = var.registry_password
     }
   }
 

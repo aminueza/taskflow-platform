@@ -7,6 +7,11 @@ application_name    = "taskflow"
 business_impact     = "Low"
 data_classification = "Confidential"
 
+# ACR configuration (get from landing_zone terraform output)
+acr_login_server   = "acrtaskflowglobalfrc.azurecr.io"
+acr_admin_username = "acrtaskflowglobalfrc"
+acr_admin_password = "your-acr-admin-password"
+
 container_apps = {
   api = {
     container_name           = "api"

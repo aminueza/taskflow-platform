@@ -4,6 +4,11 @@ application_name    = "taskflow"
 business_impact     = "Low"
 data_classification = "Confidential"
 
+# ACR configuration (from landing_zone outputs)
+acr_login_server   = "__ACR_LOGIN_SERVER__"
+acr_admin_username = "__ACR_ADMIN_USERNAME__"
+acr_admin_password = "__ACR_ADMIN_PASSWORD__"
+
 container_apps = {
   api = {
     container_name           = "api"

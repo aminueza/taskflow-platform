@@ -143,8 +143,14 @@ jobs:
         working-directory: infrastructure/terraform/applications
         run: |
           cp terraform.tfvars.template terraform.tfvars
+          # ACR configuration
+          sed -i "s|__ACR_LOGIN_SERVER__|${{ secrets.ACR_LOGIN_SERVER }}|g" terraform.tfvars
+          sed -i "s|__ACR_ADMIN_USERNAME__|${{ secrets.ACR_USERNAME }}|g" terraform.tfvars
+          sed -i "s|__ACR_ADMIN_PASSWORD__|${{ secrets.ACR_PASSWORD }}|g" terraform.tfvars
+          # Container images
           sed -i "s|__API_IMAGE__|${{ secrets.ACR_LOGIN_SERVER }}/api@${{ needs.build-and-push.outputs.api-digest }}|g" terraform.tfvars
           sed -i "s|__FRONTEND_IMAGE__|${{ secrets.ACR_LOGIN_SERVER }}/frontend@${{ needs.build-and-push.outputs.frontend-digest }}|g" terraform.tfvars
+          # Application secrets
           sed -i "s|__DATABASE_URL__|${{ secrets.DATABASE_URL }}|g" terraform.tfvars
           sed -i "s|__REDIS_URL__|${{ secrets.REDIS_URL }}|g" terraform.tfvars
           sed -i "s|__SECRET_KEY_BASE__|${{ secrets.SECRET_KEY_BASE }}|g" terraform.tfvars

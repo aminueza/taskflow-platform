@@ -110,3 +110,40 @@ variable "init_container" {
   })
   default = null
 }
+
+variable "registry_server" {
+  description = "Container registry server URL (e.g., myacr.azurecr.io)"
+  type        = string
+  default     = null
+}
+
+variable "registry_identity" {
+  description = "Managed identity resource ID for ACR pull (use 'System' for system-assigned)"
+  type        = string
+  default     = null
+}
+
+variable "registry_username" {
+  description = "Container registry username (for admin auth)"
+  type        = string
+  default     = null
+}
+
+variable "registry_password" {
+  description = "Container registry password (for admin auth)"
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "identity_type" {
+  description = "Type of managed identity (SystemAssigned, UserAssigned, or SystemAssigned, UserAssigned)"
+  type        = string
+  default     = "SystemAssigned"
+}
+
+variable "identity_ids" {
+  description = "List of user-assigned identity IDs"
+  type        = list(string)
+  default     = []
+}

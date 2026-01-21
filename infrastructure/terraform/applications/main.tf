@@ -64,6 +64,11 @@ module "container_apps" {
 
   secrets = try(each.value.secrets, {})
 
+  # ACR authentication
+  registry_server   = var.acr_login_server
+  registry_username = var.acr_admin_username
+  registry_password = var.acr_admin_password
+
   ingress_enabled          = try(each.value.ingress_enabled, true)
   ingress_external_enabled = try(each.value.ingress_external_enabled, true)
   ingress_target_port      = try(each.value.ingress_target_port, 80)
