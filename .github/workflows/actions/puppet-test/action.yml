@@ -92,12 +92,12 @@ runs:
         echo "$SYSTEM_GEM_BIN" >> $GITHUB_PATH
         export PATH="$SYSTEM_GEM_BIN:$PATH"
         
-        # Install testing tools first (to avoid facter conflicts)
-        gem install rspec-puppet --no-document
-        gem install rspec-puppet-facts --no-document
-        
-        # Install Puppet (will use already-installed compatible facter)
+        # Install Puppet first (provides facter)
         gem install puppet -v "$PUPPET_VERSION" --no-document
+        
+        # Install testing tools (force to handle any conflicts)
+        gem install rspec-puppet --no-document
+        gem install rspec-puppet-facts --no-document --force || gem install rspec-puppet-facts --no-document --ignore-dependencies
         gem install puppetlabs_spec_helper --no-document
         gem install puppet-lint --no-document
         gem install metadata-json-lint --no-document
