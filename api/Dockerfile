@@ -15,10 +15,11 @@ WORKDIR /app
 FROM base AS dependencies
 
 COPY Gemfile Gemfile.lock ./
-RUN bundle config set --local deployment 'true' \
-    && bundle config set --local without 'development test' \
+RUN bundle config set --local without 'development test' \
     && bundle install --jobs=4 --retry=3 \
-    && rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git
+    && rm -rf ~/.bundle/ /usr/local/bundle/cache/*.gem \
+    && find /usr/local/bundle/gems/ -name "*.c" -delete \
+    && find /usr/local/bundle/gems/ -name "*.o" -delete
 
 FROM ruby:3.2.2-alpine AS release
 
@@ -33,8 +34,16 @@ RUN addgroup -g 1001 -S rails \
     && adduser -S rails -u 1001 -G rails
 
 WORKDIR /app
-    
+
+# Copy installed gems from dependencies stage
 COPY --from=dependencies /usr/local/bundle /usr/local/bundle
+
+# Set bundle path explicitly
+ENV BUNDLE_PATH=/usr/local/bundle \
+    BUNDLE_WITHOUT=development:test \
+    BUNDLE_DEPLOYMENT=false \
+    GEM_HOME=/usr/local/bundle \
+    PATH="/usr/local/bundle/bin:$PATH"
 
 COPY --chown=rails:rails . .
 

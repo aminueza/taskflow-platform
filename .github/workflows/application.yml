@@ -175,19 +175,3 @@ jobs:
           echo "- API: \`${{ secrets.ACR_LOGIN_SERVER }}/api@${{ needs.build-and-push.outputs.api-digest }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Frontend: \`${{ secrets.ACR_LOGIN_SERVER }}/frontend@${{ needs.build-and-push.outputs.frontend-digest }}\`" >> $GITHUB_STEP_SUMMARY
 
-      - name: 🗃️ Run database migrations
-        if: success()
-        working-directory: infrastructure/terraform/applications
-        env:
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_USE_OIDC: "true"
-        run: |
-          APP_NAME=$(terraform output -raw api_container_app_name)
-          RG_NAME=$(terraform output -raw resource_group_name)
-          
-          az containerapp exec \
-            --name "$APP_NAME" \
-            --resource-group "$RG_NAME" \
-            --command "bundle exec rails db:migrate"
