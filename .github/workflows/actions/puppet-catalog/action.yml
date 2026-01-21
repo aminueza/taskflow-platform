@@ -163,6 +163,16 @@ runs:
         ls -la "$MODULEPATH" 2>/dev/null || echo "No modules found"
         echo ""
         
+        # Validate manifest syntax first
+        echo "Validating manifest syntax..."
+        puppet parser validate "$MANIFEST" 2>&1 || {
+          echo "❌ Manifest syntax validation failed"
+          echo "status=failure" >> $GITHUB_OUTPUT
+          exit 1
+        }
+        echo "✅ Manifest syntax OK"
+        echo ""
+        
         # Build puppet apply arguments
         PUPPET_ARGS="--noop"
         PUPPET_ARGS="$PUPPET_ARGS --modulepath=$MODULEPATH"
@@ -208,10 +218,14 @@ runs:
           fi
           
           # Compile catalog
+          echo "Running: puppet apply $PUPPET_ARGS $MANIFEST"
           set +e
-          OUTPUT=$(puppet apply $PUPPET_ARGS "$MANIFEST" 2>&1)
-          EXIT_CODE=$?
+          puppet apply $PUPPET_ARGS "$MANIFEST" 2>&1 | tee /tmp/puppet-output-${node}.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          OUTPUT=$(cat /tmp/puppet-output-${node}.log)
           set -e
+          
+          echo "Exit code: $EXIT_CODE"
           
           echo "$OUTPUT"
           
