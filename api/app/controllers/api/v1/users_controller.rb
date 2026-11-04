@@ -16,7 +16,7 @@ module Api
       end
 
       def show
-        user = User.find(params[:id])
+        user = User.find(params.expect(:id))
         render json: user
       end
 
@@ -30,7 +30,7 @@ module Api
       end
 
       def update
-        user = User.find(params[:id])
+        user = User.find(params.expect(:id))
         if user.update(user_params)
           render json: user
         else
@@ -39,7 +39,7 @@ module Api
       end
 
       def destroy
-        user = User.find(params[:id])
+        user = User.find(params.expect(:id))
         user.soft_delete!
         head :no_content
       end
@@ -47,7 +47,7 @@ module Api
       private
 
       def user_params
-        params.require(:user).permit(:username, :email, :password, :password_confirmation)
+        params.expect(user: %i[username email password password_confirmation])
       end
     end
   end

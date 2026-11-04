@@ -4,14 +4,14 @@
 if ENV['COVERAGE']
   require 'simplecov'
   SimpleCov.start 'rails' do
-    add_filter '/spec/'
-    add_filter '/config/'
-    add_filter '/vendor/'
+    skip '/spec/'
+    skip '/config/'
+    skip '/vendor/'
 
-    add_group 'Controllers', 'app/controllers'
-    add_group 'Models', 'app/models'
-    add_group 'Services', 'app/services'
-    add_group 'Workers', 'app/workers'
+    group 'Controllers', 'app/controllers'
+    group 'Models', 'app/models'
+    group 'Services', 'app/services'
+    group 'Workers', 'app/workers'
 
     minimum_coverage 80
   end
