@@ -1,4 +1,4 @@
-FROM ruby:3.2.2-alpine
+FROM ruby:3.4.10-alpine
 
 # Install system dependencies
 RUN apk add --no-cache \

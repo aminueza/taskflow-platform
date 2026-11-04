@@ -35,7 +35,7 @@ jobs:
         with:
           app-type: "ruby"
           ruby-working-directory: "./api"
-          ruby-version: "3.2"
+          ruby-version: "3.4"
           run-brakeman: "true"
 
   security:

@@ -9,7 +9,7 @@ module Api
       end
 
       def show
-        task = Task.find(params[:id])
+        task = Task.find(params.expect(:id))
         render json: task
       end
 
@@ -23,7 +23,7 @@ module Api
       end
 
       def update
-        task = Task.find(params[:id])
+        task = Task.find(params.expect(:id))
         if task.update(task_params)
           render json: task
         else
@@ -32,13 +32,13 @@ module Api
       end
 
       def destroy
-        task = Task.find(params[:id])
+        task = Task.find(params.expect(:id))
         task.destroy
         head :no_content
       end
 
       def toggle_status
-        task = Task.find(params[:id])
+        task = Task.find(params.expect(:id))
         task.status = task.status == 'completed' ? 'pending' : 'completed'
         if task.save
           render json: task
@@ -50,7 +50,7 @@ module Api
       private
 
       def task_params
-        params.require(:task).permit(:title, :description, :status, :user_id)
+        params.expect(task: %i[title description status user_id])
       end
     end
   end

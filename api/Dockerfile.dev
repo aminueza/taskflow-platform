@@ -1,5 +1,5 @@
 # Development Dockerfile for Rails
-FROM ruby:3.2-alpine
+FROM ruby:3.4-alpine
 
 # Install dependencies
 RUN apk add --no-cache \
